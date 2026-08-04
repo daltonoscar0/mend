@@ -33,8 +33,6 @@ from transformers import (
     TrainerCallback,
 )
 
-from mend.generate_data import read_jsonl
-
 PREFIX = "clean up: "
 DEFAULT_MODEL = "google/flan-t5-small"
 
@@ -55,6 +53,25 @@ def pick_device() -> str:
 # --------------------------------------------------------------------------
 # data
 # --------------------------------------------------------------------------
+
+
+def load_pairs(path: Path, limit: int = 0) -> List[dict]:
+    """Read only the two fields training needs.
+
+    The JSONL also carries tokens, alignments and span annotations for the
+    evaluation and surprisal stages. Keeping all of that for 50k rows costs
+    hundreds of megabytes for no benefit here.
+    """
+    rows: List[dict] = []
+    with Path(path).open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            rows.append({"disfluent": record["disfluent"], "clean": record["clean"]})
+            if limit and len(rows) >= limit:
+                break
+    return rows
 
 
 def to_dataset(rows: Sequence[dict]) -> Dataset:
@@ -100,6 +117,23 @@ class LossTrace(TrainerCallback):
             self.losses.append(float(logs["loss"]))
 
 
+class TrimMPSCache(TrainerCallback):
+    """Drop the MPS allocator's cached blocks every so often.
+
+    The allocator keeps a separate pool per tensor shape and does not hand
+    memory back. With dynamically padded batches the number of distinct shapes
+    keeps growing, so the pool grows all run and eventually pushes the machine
+    into swap, which shows up as step times that get steadily worse.
+    """
+
+    def __init__(self, every: int = 100) -> None:
+        self.every = every
+
+    def on_step_end(self, args, state, control, **kwargs):
+        if state.global_step % self.every == 0:
+            torch.mps.empty_cache()
+
+
 # --------------------------------------------------------------------------
 # decoding
 # --------------------------------------------------------------------------
@@ -130,8 +164,8 @@ def train(args: argparse.Namespace) -> int:
     device = args.device or pick_device()
     print(f"device: {device}", file=sys.stderr)
 
-    train_rows = read_jsonl(args.data / "train.jsonl")
-    val_rows = read_jsonl(args.data / "val.jsonl")
+    train_rows = load_pairs(args.data / "train.jsonl", args.max_train)
+    val_rows = load_pairs(args.data / "val.jsonl")
 
     epochs = args.epochs
     if device == "cpu" and not args.smoke:
@@ -142,9 +176,6 @@ def train(args: argparse.Namespace) -> int:
             "no GPU: cutting the training set to 10000 pairs and 1 epoch",
             file=sys.stderr,
         )
-    if args.max_train:
-        train_rows = train_rows[: args.max_train]
-
     if args.smoke:
         train_rows = train_rows[: args.batch * args.smoke_steps]
         val_rows = val_rows[:200]
@@ -216,6 +247,8 @@ def train(args: argparse.Namespace) -> int:
 
     trace = LossTrace()
     callbacks: List[TrainerCallback] = [trace]
+    if device == "mps":
+        callbacks.append(TrimMPSCache())
     if not args.smoke:
         callbacks.append(EarlyStoppingCallback(early_stopping_patience=3))
 
@@ -224,7 +257,9 @@ def train(args: argparse.Namespace) -> int:
         args=training_args,
         train_dataset=ds_train,
         eval_dataset=ds_val,
-        data_collator=DataCollatorForSeq2Seq(tokenizer, model=model),
+        # Quantising the padded width keeps the number of distinct tensor
+        # shapes small, which the MPS allocator is much happier with.
+        data_collator=DataCollatorForSeq2Seq(tokenizer, model=model, pad_to_multiple_of=8),
         processing_class=tokenizer,
         callbacks=callbacks,
     )

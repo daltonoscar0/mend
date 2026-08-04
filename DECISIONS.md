@@ -30,3 +30,6 @@ A running log of engineering decisions made while building Mend, one line each.
 - 2026-08-04: Surprisal is summed over the subwords of a word, and the causal LM's offsets fold the preceding space into each token, which shifted every measurement one word to the left until it was corrected.
 - 2026-08-04: The surprisal control is the same sentence with its disfluencies removed, measured at the matching word position and differenced instance by instance, rather than a separate pool of fluent sentences.
 - 2026-08-04: Only disfluencies with a complete +/-5 window on both the disfluent and the clean side are analysed, so every point on the figure rests on the same set of instances.
+- 2026-08-04: The first full training run degraded from 1.8 s/step to 27 s/step and drove the machine 7.9 GB into swap. Cause: the MPS caching allocator keeps a pool per tensor shape and never releases it, so dynamically padded batches grew the pool all run. Fixed by padding to a multiple of 8 and emptying the MPS cache every 100 steps; step time is now flat at ~1.4 s.
+- 2026-08-04: Training reads only the `disfluent`/`clean` fields from the JSONL rather than the full annotated records, which are only needed by the evaluation and surprisal stages.
+- 2026-08-04: Do not run the surprisal pass alongside training on this machine; the two together exhaust physical memory and both crawl.
