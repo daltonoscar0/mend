@@ -66,3 +66,7 @@ A running log of engineering decisions made while building Mend, one line each.
 - 2026-08-04: Growing the test split moved the synthetic repair effect from +7.34 bits (n=64) to +3.84 bits (n=311); the original estimate was inflated by small-sample noise, which is what the larger split was for.
 - 2026-08-04: The surprisal legend is placed by matplotlib's "best" rule, since the peak sits in a different corner on synthetic and real data.
 - 2026-08-04: Kept both surprisal figures rather than one. The synthetic panel has the tighter sampling and the real panel carries the actual claim, and the difference between them (peak at -1 vs at 0) is itself a finding about the generator.
+- 2026-08-04: Added `mend-clean`, a console entry point that runs the trained model over stdin or arguments. Until then the only way to clean a sentence was to import the evaluation helpers by hand, which made the model hard to try.
+- 2026-08-04: `mend-clean` normalises its input through `spoken_form` first, so pasting text that already carries capitals and commas still matches the register the model was fine-tuned on; `--raw` opts out.
+- 2026-08-04: `run_model` grew a `progress` flag so the decode counter does not pollute stderr when the CLI is used as a filter; it stays on for the long evaluation runs.
+- 2026-08-04: The CLI tests cover normalisation and the refusal paths only. Anything needing a checkpoint belongs in the evaluation, not the unit tests, so `pytest` stays fast and runs on a fresh clone with no model.

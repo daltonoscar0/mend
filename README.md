@@ -35,6 +35,26 @@ uv pip install -e ".[dev]"
 Any environment with the pinned dependencies in `pyproject.toml` works. The scripts
 pick their device automatically: CUDA if present, otherwise Apple MPS, otherwise CPU.
 
+## Using it
+
+Once there is a model at `outputs/model`:
+
+```console
+$ mend-clean "um send the the report to john no wait sarah by friday"
+Send the report to Sarah by Friday.
+
+$ echo "so i was like really tired you know" | mend-clean
+So I was really tired.
+```
+
+It reads stdin when given no arguments, one line in, one line out, so it works in
+a pipe. Input is normalised to the register the model was trained on — lowercased,
+edge punctuation removed — so pasting text that already has capitals and commas
+works; `--raw` skips that. `--show-input` prints both sides.
+
+Read the accuracy section below before trusting it on anything: it is good at
+removing filled pauses and restoring punctuation, and unreliable at repairs.
+
 ## Running the stages
 
 ```bash
@@ -62,6 +82,9 @@ python -m mend.evaluate
 python -m mend.surprisal --data data/test.jsonl --title "Synthetic test split"
 python -m mend.surprisal --data data/swda_eval.jsonl --shuffle --limit 20000 \
     --tag _swda --title "Real speech (Switchboard)"
+
+# 7. run the model over your own text
+mend-clean "um send the the report to john no wait sarah by friday"
 ```
 
 Every stage is seeded and re-runnable. Do not run the surprisal pass next to
@@ -256,6 +279,7 @@ mend/swda.py           Switchboard transcripts -> the same schema, from real spe
 mend/train.py          seq2seq fine-tune
 mend/evaluate.py       the results table
 mend/surprisal.py      per-token surprisal and the figures
+mend/clean.py          the mend-clean command, for running the model over text
 data/hard_set.jsonl    100 hand-written hard cases
 outputs/               table, figures, predictions, checkpoints
 DECISIONS.md           one line per engineering decision made along the way
