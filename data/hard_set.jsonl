@@ -1,0 +1,100 @@
+{"disfluent": "i um like like minded people", "clean": "I like like-minded people.", "phenomenon": "filler_as_content"}
+{"disfluent": "you know the answer better than i do", "clean": "You know the answer better than I do.", "phenomenon": "filler_as_content"}
+{"disfluent": "it looks like rain so bring an umbrella", "clean": "It looks like rain, so bring an umbrella.", "phenomenon": "filler_as_content"}
+{"disfluent": "well water is safe to drink here", "clean": "Well water is safe to drink here.", "phenomenon": "filler_as_content"}
+{"disfluent": "so many people came that we ran out of chairs", "clean": "So many people came that we ran out of chairs.", "phenomenon": "filler_as_content"}
+{"disfluent": "he likes people like us", "clean": "He likes people like us.", "phenomenon": "filler_as_content"}
+{"disfluent": "just like last time bring the blue folder", "clean": "Just like last time, bring the blue folder.", "phenomenon": "filler_as_content"}
+{"disfluent": "i mean well when i say that", "clean": "I mean well when I say that.", "phenomenon": "filler_as_content"}
+{"disfluent": "no one answered the door", "clean": "No one answered the door.", "phenomenon": "filler_as_content"}
+{"disfluent": "wait for the second bell before you go in", "clean": "Wait for the second bell before you go in.", "phenomenon": "filler_as_content"}
+{"disfluent": "sorry seems to be the hardest word", "clean": "Sorry seems to be the hardest word.", "phenomenon": "filler_as_content"}
+{"disfluent": "say sorry to marcus for the delay", "clean": "Say sorry to Marcus for the delay.", "phenomenon": "filler_as_content"}
+{"disfluent": "there are like minded groups in every city", "clean": "There are like-minded groups in every city.", "phenomenon": "filler_as_content"}
+{"disfluent": "do you know sarah from the london office", "clean": "Do you know Sarah from the London office?", "phenomenon": "filler_as_content"}
+{"disfluent": "bring me the red the dark red one", "clean": "Bring me the dark red one.", "phenomenon": "overlapping_repair"}
+{"disfluent": "send it to the office the london office", "clean": "Send it to the London office.", "phenomenon": "overlapping_repair"}
+{"disfluent": "meet me on monday no on monday morning", "clean": "Meet me on Monday morning.", "phenomenon": "overlapping_repair"}
+{"disfluent": "i need three i need three hundred", "clean": "I need three hundred.", "phenomenon": "overlapping_repair"}
+{"disfluent": "the report the quarterly report is late", "clean": "The quarterly report is late.", "phenomenon": "overlapping_repair"}
+{"disfluent": "call the front the front desk", "clean": "Call the front desk.", "phenomenon": "overlapping_repair"}
+{"disfluent": "she moved to the north the north east side", "clean": "She moved to the north-east side.", "phenomenon": "overlapping_repair"}
+{"disfluent": "put it in the top in the top left drawer", "clean": "Put it in the top left drawer.", "phenomenon": "overlapping_repair"}
+{"disfluent": "book a room book a large room", "clean": "Book a large room.", "phenomenon": "overlapping_repair"}
+{"disfluent": "the fifteenth i mean the fifteenth of june", "clean": "The fifteenth of June.", "phenomenon": "overlapping_repair"}
+{"disfluent": "we leave at six at six thirty", "clean": "We leave at six thirty.", "phenomenon": "overlapping_repair"}
+{"disfluent": "email david email david and rachel", "clean": "Email David and Rachel.", "phenomenon": "overlapping_repair"}
+{"disfluent": "bring the blue folder the dark blue folder", "clean": "Bring the dark blue folder.", "phenomenon": "overlapping_repair"}
+{"disfluent": "he lives on king he lives on kingsway", "clean": "He lives on Kingsway.", "phenomenon": "overlapping_repair"}
+{"disfluent": "send it to john no wait to sarah no actually to sarahs assistant", "clean": "Send it to Sarah's assistant.", "phenomenon": "nested_repair"}
+{"disfluent": "meet me on tuesday no wednesday no i mean thursday", "clean": "Meet me on Thursday.", "phenomenon": "nested_repair"}
+{"disfluent": "put the box in the garage no the base no the basement", "clean": "Put the box in the basement.", "phenomenon": "nested_repair"}
+{"disfluent": "call him at four no at five no wait at five thirty", "clean": "Call him at five thirty.", "phenomenon": "nested_repair"}
+{"disfluent": "the invoice for march no for april no i mean for april tenth", "clean": "The invoice for April tenth.", "phenomenon": "nested_repair"}
+{"disfluent": "tell marcus no tell priya no wait tell priya and marcus", "clean": "Tell Priya and Marcus.", "phenomenon": "nested_repair"}
+{"disfluent": "we need two no three no sorry four chairs", "clean": "We need four chairs.", "phenomenon": "nested_repair"}
+{"disfluent": "book the small room no the large no the largest room", "clean": "Book the largest room.", "phenomenon": "nested_repair"}
+{"disfluent": "i left it on the desk no in the drawer no wait in the top drawer", "clean": "I left it in the top drawer.", "phenomenon": "nested_repair"}
+{"disfluent": "forward it to the london no the leeds no i mean the leeds office", "clean": "Forward it to the Leeds office.", "phenomenon": "nested_repair"}
+{"disfluent": "she starts on monday no on the first no on the first of june", "clean": "She starts on the first of June.", "phenomenon": "nested_repair"}
+{"disfluent": "print five no ten no wait ten double sided copies", "clean": "Print ten double-sided copies.", "phenomenon": "nested_repair"}
+{"disfluent": "we should meet on friday and bring the report no i mean on thursday", "clean": "We should meet on Thursday and bring the report.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "send the invoice to kevin because it is due no wait send it to laura", "clean": "Send the invoice to Laura because it is due.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "book the room for tuesday and order lunch no i mean for wednesday", "clean": "Book the room for Wednesday and order lunch.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "i left the keys in the car after i locked up no wait in the office", "clean": "I left the keys in the office after I locked up.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "tell the team we ship in march once the audit closes no i mean in april", "clean": "Tell the team we ship in April once the audit closes.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "email the draft to priya when it is ready no wait to omar", "clean": "Email the draft to Omar when it is ready.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "we moved the meeting to nine so everyone can attend no i mean to ten", "clean": "We moved the meeting to ten so everyone can attend.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "she flies out on the fourth unless the visa is late no on the fifth", "clean": "She flies out on the fifth unless the visa is late.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "put the parcel in the lobby before you leave no wait in the mailroom", "clean": "Put the parcel in the mailroom before you leave.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "ask david whether the contract is signed no wait ask hannah", "clean": "Ask Hannah whether the contract is signed.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "print the agenda for the friday call and staple it no i mean for the monday call", "clean": "Print the agenda for the Monday call and staple it.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "i booked a table for six at the usual place no wait for eight", "clean": "I booked a table for eight at the usual place.", "phenomenon": "cross_clause_repair"}
+{"disfluent": "the total is twelve fifty no wait twelve fifteen", "clean": "The total is twelve fifteen.", "phenomenon": "number_date_repair"}
+{"disfluent": "it costs 40 no 14 pounds", "clean": "It costs 14 pounds.", "phenomenon": "number_date_repair"}
+{"disfluent": "meeting on the third no the thirteenth of may", "clean": "Meeting on the thirteenth of May.", "phenomenon": "number_date_repair"}
+{"disfluent": "call me at 555 0182 no wait 555 0128", "clean": "Call me at 555 0128.", "phenomenon": "number_date_repair"}
+{"disfluent": "we need 200 no 2000 envelopes", "clean": "We need 2000 envelopes.", "phenomenon": "number_date_repair"}
+{"disfluent": "the deadline is june 1 no july 1", "clean": "The deadline is July 1.", "phenomenon": "number_date_repair"}
+{"disfluent": "she turns 30 no 31 next week", "clean": "She turns 31 next week.", "phenomenon": "number_date_repair"}
+{"disfluent": "invoice number 4471 sorry 4417", "clean": "Invoice number 4417.", "phenomenon": "number_date_repair"}
+{"disfluent": "the flight leaves at 6 45 no wait 7 45", "clean": "The flight leaves at 7:45.", "phenomenon": "number_date_repair"}
+{"disfluent": "book it for the 21st no the 22nd of october", "clean": "Book it for the 22nd of October.", "phenomenon": "number_date_repair"}
+{"disfluent": "there were fifty no fifteen people there", "clean": "There were fifteen people there.", "phenomenon": "number_date_repair"}
+{"disfluent": "the quarter closes in q2 no q3", "clean": "The quarter closes in Q3.", "phenomenon": "number_date_repair"}
+{"disfluent": "add 5 percent no 15 percent to the estimate", "clean": "Add 15 percent to the estimate.", "phenomenon": "number_date_repair"}
+{"disfluent": "he scored 88 no 89 on the test", "clean": "He scored 89 on the test.", "phenomenon": "number_date_repair"}
+{"disfluent": "the meeting is on the 8th at 3 no at 4", "clean": "The meeting is on the 8th at 4.", "phenomenon": "number_date_repair"}
+{"disfluent": "we ordered 12 boxes no 20 boxes of paper", "clean": "We ordered 20 boxes of paper.", "phenomenon": "number_date_repair"}
+{"disfluent": "send the um invoice no wait the contract to john i mean sarah by friday no thursday", "clean": "Send the contract to Sarah by Thursday.", "phenomenon": "multi_repair"}
+{"disfluent": "meet me in the uh lobby no the kitchen at three no four", "clean": "Meet me in the kitchen at four.", "phenomenon": "multi_repair"}
+{"disfluent": "tell david no rachel that the report um the summary is late", "clean": "Tell Rachel that the summary is late.", "phenomenon": "multi_repair"}
+{"disfluent": "move the blue no the green box from the garage no wait the basement", "clean": "Move the green box from the basement.", "phenomenon": "multi_repair"}
+{"disfluent": "book two no three rooms for monday no tuesday morning", "clean": "Book three rooms for Tuesday morning.", "phenomenon": "multi_repair"}
+{"disfluent": "email priya i mean omar about the budget no wait the audit", "clean": "Email Omar about the audit.", "phenomenon": "multi_repair"}
+{"disfluent": "we ship on the first no the second and invoice on the tenth no the twelfth", "clean": "We ship on the second and invoice on the twelfth.", "phenomenon": "multi_repair"}
+{"disfluent": "print five no six copies of the memo no the agenda", "clean": "Print six copies of the agenda.", "phenomenon": "multi_repair"}
+{"disfluent": "call the london no wait the leeds office at nine no at ten", "clean": "Call the Leeds office at ten.", "phenomenon": "multi_repair"}
+{"disfluent": "she flies to paris no lyon on the fourth no fifth of june", "clean": "She flies to Lyon on the fifth of June.", "phenomenon": "multi_repair"}
+{"disfluent": "put the red no the black folder in the lobby no the hallway", "clean": "Put the black folder in the hallway.", "phenomenon": "multi_repair"}
+{"disfluent": "ask kevin no anna whether the invoice for march no april was paid", "clean": "Ask Anna whether the invoice for April was paid.", "phenomenon": "multi_repair"}
+{"disfluent": "the meeting moved from tuesday no monday to thursday no friday", "clean": "The meeting moved from Monday to Friday.", "phenomenon": "multi_repair"}
+{"disfluent": "forward the memo no the draft to hannah no marcus and copy me", "clean": "Forward the draft to Marcus and copy me.", "phenomenon": "multi_repair"}
+{"disfluent": "we need twenty no thirty chairs and ten no twelve tables", "clean": "We need thirty chairs and twelve tables.", "phenomenon": "multi_repair"}
+{"disfluent": "bring the laptop no the notebook to the studio no wait to the warehouse", "clean": "Bring the notebook to the warehouse.", "phenomenon": "multi_repair"}
+{"disfluent": "can you no lets schedule it for friday", "clean": "Let's schedule it for Friday.", "phenomenon": "false_start"}
+{"disfluent": "i was going to lets just cancel the call", "clean": "Let's just cancel the call.", "phenomenon": "false_start"}
+{"disfluent": "do you have the actually never mind send me the report", "clean": "Send me the report.", "phenomenon": "false_start"}
+{"disfluent": "we should i mean just book the room for two hours", "clean": "Just book the room for two hours.", "phenomenon": "false_start"}
+{"disfluent": "let me could you print the agenda before nine", "clean": "Could you print the agenda before nine?", "phenomenon": "false_start"}
+{"disfluent": "if the client if you hear from the client tell me", "clean": "If you hear from the client, tell me.", "phenomenon": "false_start"}
+{"disfluent": "the report the the numbers in the report are wrong", "clean": "The numbers in the report are wrong.", "phenomenon": "false_start"}
+{"disfluent": "i need to could you pick up the parcel today", "clean": "Could you pick up the parcel today?", "phenomenon": "false_start"}
+{"disfluent": "send the the report to sarah", "clean": "Send the report to Sarah.", "phenomenon": "repetition"}
+{"disfluent": "i i think the invoice is wrong", "clean": "I think the invoice is wrong.", "phenomenon": "repetition"}
+{"disfluent": "we need to to confirm the numbers", "clean": "We need to confirm the numbers.", "phenomenon": "repetition"}
+{"disfluent": "put it in the in the top drawer", "clean": "Put it in the top drawer.", "phenomenon": "repetition"}
+{"disfluent": "she said she said she would call back", "clean": "She said she would call back.", "phenomenon": "repetition"}
+{"disfluent": "book a a table for four", "clean": "Book a table for four.", "phenomenon": "repetition"}
+{"disfluent": "the the the deadline moved again", "clean": "The deadline moved again.", "phenomenon": "repetition"}
+{"disfluent": "call me call me when you land", "clean": "Call me when you land.", "phenomenon": "repetition"}

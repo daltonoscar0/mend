@@ -13,3 +13,12 @@ Shriberg-structured annotations, a fine-tuned seq2seq cleanup model, an evaluati
 table, and a surprisal-at-repair-boundaries figure.
 
 Setup and usage instructions land here as the stages are built.
+
+## A note on `data/hard_set.jsonl`
+
+The hard set is 100 adversarial examples covering nested repairs, repairs that
+cross a clause boundary, repairs whose reparandum and repair share words, words
+like *like* and *sorry* used literally rather than as fillers, number and date
+repairs, and sentences carrying several repairs at once. It was drafted in one
+pass and **has not been reviewed by a second pair of eyes**. Read it and edit it
+by hand before quoting any hard-set number as a result.
