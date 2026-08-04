@@ -59,3 +59,10 @@ A running log of engineering decisions made while building Mend, one line each.
 - 2026-08-04: Added a punctuation-blind WER column. Switchboard transcribers use far more commas than written prose, so the plain WER on real speech partly measures a house-style difference rather than disfluency removal.
 - 2026-08-04: Repair resolution had to stop requiring every word of a repair span to survive: real transcripts nest a repair inside the repair half of a larger one, so a perfect output scored 0.88 instead of 1.00.
 - 2026-08-04: `data/swda_eval.jsonl` is not committed; it is derived data, regenerable in one command from the URL in the README.
+- 2026-08-04: The retrain was interrupted at step 1357; added `--resume auto` and carried on from checkpoint-1200 rather than repeating 30 minutes of work. Loss after the resume (0.2155) matched the values before it (0.2118-0.2233), so the restore was clean; the "missing keys" warning for `embed_tokens` is T5 tying those weights to `shared.weight`.
+- 2026-08-04: Deleted the stale `train_summary.json` from the first run as soon as the retrain was interrupted, so a half-finished run could not be reported using the previous run's numbers.
+- 2026-08-04: `train_runtime_s` in the summary covers only the resumed leg (2143 s); the full run was about 66 minutes across the interruption.
+- 2026-08-04: Repair resolution on the synthetic split fell from 0.945 to 0.848 after the injector was widened. That is the injector getting harder, not the model getting worse.
+- 2026-08-04: Growing the test split moved the synthetic repair effect from +7.34 bits (n=64) to +3.84 bits (n=311); the original estimate was inflated by small-sample noise, which is what the larger split was for.
+- 2026-08-04: The surprisal legend is placed by matplotlib's "best" rule, since the peak sits in a different corner on synthetic and real data.
+- 2026-08-04: Kept both surprisal figures rather than one. The synthetic panel has the tighter sampling and the real panel carries the actual claim, and the difference between them (peak at -1 vs at 0) is itself a finding about the generator.

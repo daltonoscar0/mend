@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -342,7 +343,8 @@ def make_figure(
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax.margins(y=0.16)
-    ax.legend(frameon=False, loc="upper right", handlelength=1.6, borderaxespad=0.2)
+    # the peak moves between datasets, so let matplotlib find the free corner
+    ax.legend(frameon=False, loc="best", handlelength=1.6, borderaxespad=0.2)
     if title:
         ax.set_title(title, pad=4)
     fig.tight_layout(pad=0.4)
@@ -372,9 +374,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--draws", type=int, default=2000)
     ap.add_argument("--tag", default="", help="suffix for the output filenames")
     ap.add_argument("--title", default="", help="figure title")
+    ap.add_argument("--shuffle", action="store_true",
+                    help="sample across the file rather than off the front")
+    ap.add_argument("--seed", type=int, default=13)
     args = ap.parse_args(argv)
 
     rows = read_jsonl(args.data)
+    if args.shuffle:
+        # The real-speech file is ordered by conversation, so take the sample
+        # across the whole corpus rather than off the front of it.
+        random.Random(args.seed).shuffle(rows)
     if args.limit:
         rows = rows[: args.limit]
 

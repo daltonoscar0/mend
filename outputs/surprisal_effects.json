@@ -1,50 +1,50 @@
 {
   "repair": {
-    "n": 64,
+    "n": 311,
     "peak_position": -1,
-    "peak_effect_bits": 7.337735100474674,
+    "peak_effect_bits": 3.8430674505566764,
     "peak_effect_ci95": [
-      5.559455142053776,
-      9.072941529395758
+      2.864452893137363,
+      4.838923058229262
     ],
-    "surprisal_at_peak_bits": 13.37730713095516,
-    "control_at_peak_bits": 6.039572030480485,
-    "effect_at_boundary_bits": 3.8723833058029413,
+    "surprisal_at_peak_bits": 10.96594079022694,
+    "control_at_peak_bits": 7.122873339670264,
+    "effect_at_boundary_bits": 3.257184736047335,
     "effect_at_boundary_ci95": [
-      2.6672324160579595,
-      5.056310963828582
+      2.589945314976707,
+      3.931012375161076
     ]
   },
   "repetition": {
-    "n": 74,
+    "n": 447,
     "peak_position": 0,
-    "peak_effect_bits": 4.8663540771231055,
+    "peak_effect_bits": 2.9114449002157055,
     "peak_effect_ci95": [
-      3.8097464961843013,
-      5.943292411022846
+      2.2272630774036832,
+      3.5789915345065397
     ],
-    "surprisal_at_peak_bits": 12.35750738785577,
-    "control_at_peak_bits": 7.491153310732664,
-    "effect_at_boundary_bits": 4.8663540771231055,
+    "surprisal_at_peak_bits": 12.411605644458593,
+    "control_at_peak_bits": 9.500160744242887,
+    "effect_at_boundary_bits": 2.9114449002157055,
     "effect_at_boundary_ci95": [
-      3.8097464961843013,
-      5.943292411022846
+      2.2272630774036832,
+      3.5789915345065397
     ]
   },
   "filler": {
-    "n": 298,
-    "peak_position": 0,
-    "peak_effect_bits": 5.09894904807435,
+    "n": 1652,
+    "peak_position": 1,
+    "peak_effect_bits": 5.221275291740946,
     "peak_effect_ci95": [
-      4.234341808010655,
-      5.954268469193626
+      4.803097176516942,
+      5.649935597842499
     ],
-    "surprisal_at_peak_bits": 14.970408654853001,
-    "control_at_peak_bits": 9.871459606778652,
-    "effect_at_boundary_bits": 5.09894904807435,
+    "surprisal_at_peak_bits": 12.804351311082868,
+    "control_at_peak_bits": 7.583076019341922,
+    "effect_at_boundary_bits": 3.911518034608933,
     "effect_at_boundary_ci95": [
-      4.234341808010655,
-      5.954268469193626
+      3.5573128480807688,
+      4.26482417378965
     ]
   }
 }

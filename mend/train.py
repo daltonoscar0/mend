@@ -264,7 +264,16 @@ def train(args: argparse.Namespace) -> int:
         callbacks=callbacks,
     )
 
-    result = trainer.train()
+    resume = args.resume or None
+    if resume == "auto":
+        existing = sorted(
+            out_dir.glob("checkpoint-*"),
+            key=lambda p: int(p.name.split("-")[-1]),
+        )
+        resume = str(existing[-1]) if existing else None
+        if resume:
+            print(f"resuming from {resume}", file=sys.stderr)
+    result = trainer.train(resume_from_checkpoint=resume)
     metrics = trainer.evaluate()
     final_eval_loss = metrics["eval_loss"]
 
@@ -351,6 +360,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--log-steps", dest="log_steps", type=int, default=20)
     ap.add_argument("--eval-steps", dest="eval_steps", type=int, default=0)
     ap.add_argument("--seed", type=int, default=13)
+    ap.add_argument(
+        "--resume",
+        default=None,
+        help='checkpoint to carry on from, or "auto" for the latest one',
+    )
     ap.add_argument("--smoke", action="store_true", help="short run to check the loss falls")
     ap.add_argument("--smoke-steps", dest="smoke_steps", type=int, default=200)
     args = ap.parse_args(argv)
