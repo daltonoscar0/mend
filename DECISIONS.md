@@ -38,3 +38,4 @@ A running log of engineering decisions made while building Mend, one line each.
 - 2026-08-04: The surprisal analysis was run and committed before the evaluation, out of milestone order, because it needs no trained model and could use the CPU while the GPU was busy.
 - 2026-08-04: `outputs/predictions.jsonl` is committed alongside the table so every cell can be traced back to the decoded output it came from.
 - 2026-08-04: Training logs are untracked (`outputs/*.log`); they are mostly progress-bar carriage returns. The numbers worth keeping live in `train_summary.json`, `eval_table.*` and `surprisal_effects.json`.
+- 2026-08-04: Added `jiwer` to the dependency list (not in the original set) rather than hand-rolling an edit-distance WER; pytest sits in an optional `dev` extra, so the README's setup line installs `.[dev]`.
