@@ -17,3 +17,6 @@ outputs/runs/
 
 # hf caches
 .cache/
+
+# training logs
+outputs/*.log

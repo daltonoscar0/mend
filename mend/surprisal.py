@@ -339,7 +339,8 @@ def make_figure(
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.legend(frameon=False, loc="upper left", handlelength=1.6, borderaxespad=0.2)
+    ax.margins(y=0.16)
+    ax.legend(frameon=False, loc="upper right", handlelength=1.6, borderaxespad=0.2)
     fig.tight_layout(pad=0.4)
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -413,6 +414,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print("\nSurprisal relative to the matched fluent control:")
     for line in lines:
         print("  " + line)
+    print(
+        "\n  Each figure is a per-instance paired difference against that "
+        "disfluency's\n  own control window. The dashed line in the figure pools "
+        "the control\n  windows of all three types, so reading a gap straight off "
+        "the plot will\n  not reproduce these numbers exactly."
+    )
     print(f"\nwrote {pdf} and {png}")
 
     (args.out / "surprisal_effects.json").write_text(json.dumps(report, indent=2))
