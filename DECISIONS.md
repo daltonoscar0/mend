@@ -33,3 +33,7 @@ A running log of engineering decisions made while building Mend, one line each.
 - 2026-08-04: The first full training run degraded from 1.8 s/step to 27 s/step and drove the machine 7.9 GB into swap. Cause: the MPS caching allocator keeps a pool per tensor shape and never releases it, so dynamically padded batches grew the pool all run. Fixed by padding to a multiple of 8 and emptying the MPS cache every 100 steps; step time is now flat at ~1.4 s.
 - 2026-08-04: Training reads only the `disfluent`/`clean` fields from the JSONL rather than the full annotated records, which are only needed by the evaluation and surprisal stages.
 - 2026-08-04: Do not run the surprisal pass alongside training on this machine; the two together exhaust physical memory and both crawl.
+- 2026-08-04: Repair resolution reached 94.5% on the synthetic dev/test split, comfortably above the 60% bar, so flan-t5-small stands and there was no reason to escalate to flan-t5-base.
+- 2026-08-04: Early stopping never fired: validation loss fell at every one of the seven evaluations (0.178 -> 0.131), so the run used both epochs in full.
+- 2026-08-04: The surprisal analysis was run and committed before the evaluation, out of milestone order, because it needs no trained model and could use the CPU while the GPU was busy.
+- 2026-08-04: `outputs/predictions.jsonl` is committed alongside the table so every cell can be traced back to the decoded output it came from.

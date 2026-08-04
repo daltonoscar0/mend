@@ -1,0 +1,5 @@
+system,dataset,n,exact_match,wer,filler_f1,repair_accuracy,n_repairs,filler_precision,filler_recall
+Copy baseline,held-out synthetic,2000,0.0315,0.31777320480883786,0.0,0.0,472,0.0,0.0
+Mend (flan-t5-small),held-out synthetic,2000,0.644,0.05718618000649843,0.9987009612886464,0.9449152542372882,472,0.9974052932018682,1.0
+Copy baseline,hard set,100,0.08,0.6886792452830188,0.0,0.0,88,0.0,0.0
+Mend (flan-t5-small),hard set,100,0.53,0.2358490566037736,0.6666666666666666,0.5340909090909091,88,0.5,1.0
