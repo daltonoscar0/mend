@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import random
 import re
 import sys
 from collections import Counter
@@ -99,6 +100,22 @@ def word_error_rate(hyps: Sequence[str], golds: Sequence[str]) -> float:
 
     refs = [normalize_ws(g) for g in golds]
     outs = [normalize_ws(h) if h.strip() else "@" for h in hyps]
+    return float(jiwer.wer(refs, outs))
+
+
+def word_error_rate_spoken(hyps: Sequence[str], golds: Sequence[str]) -> float:
+    """WER over lowercased, punctuation-free tokens.
+
+    Needed to read the real-speech row honestly. Switchboard transcribers comma
+    far more heavily than written prose does, so a model trained on WikiText
+    punctuation is marked down there for a house-style difference rather than
+    for anything to do with disfluency. This variant asks only whether the
+    right words came out in the right order.
+    """
+    import jiwer
+
+    refs = [" ".join(word_tokens(g)) or "@" for g in golds]
+    outs = [" ".join(word_tokens(h)) or "@" for h in hyps]
     return float(jiwer.wer(refs, outs))
 
 
@@ -216,7 +233,11 @@ def repair_resolved_annotated(row: dict, hyp: str) -> Optional[bool]:
             if out.get(word, 0) > gold.get(word, 0):
                 return False
         for word in word_tokens(repair):
-            if out.get(word, 0) < 1:
+            # A repair span can enclose material that some other annotation
+            # deletes -- real transcripts nest repairs inside the repair half
+            # of a bigger one. Only words that survive into the gold are
+            # required to survive into the output.
+            if gold.get(word, 0) and out.get(word, 0) < 1:
                 return False
     return True
 
@@ -256,6 +277,7 @@ def score(rows: Sequence[dict], hyps: Sequence[str]) -> Dict[str, float]:
     golds = [r["clean"] for r in rows]
     em = sum(exact_match(h, g) for h, g in zip(hyps, golds)) / max(1, len(rows))
     wer = word_error_rate(hyps, golds)
+    wer_spoken = word_error_rate_spoken(hyps, golds)
 
     filler = PRF()
     repairs_seen = 0
@@ -270,6 +292,7 @@ def score(rows: Sequence[dict], hyps: Sequence[str]) -> Dict[str, float]:
     return {
         "exact_match": em,
         "wer": wer,
+        "wer_spoken": wer_spoken,
         "filler_f1": filler.f1,
         "filler_precision": filler.precision,
         "filler_recall": filler.recall,
@@ -341,6 +364,7 @@ COLUMNS = [
     ("n", "N"),
     ("exact_match", "Exact match"),
     ("wer", "WER"),
+    ("wer_spoken", "WER (words only)"),
     ("filler_f1", "Filler removal F1"),
     ("repair_accuracy", "Repair resolution"),
     ("n_repairs", "Repairs scored"),
@@ -402,6 +426,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--device", default=None)
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--limit", type=int, default=0, help="cap examples per set")
+    ap.add_argument("--swda-sample", dest="swda_sample", type=int, default=2000)
+    ap.add_argument("--seed", type=int, default=13)
     args = ap.parse_args(argv)
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -409,6 +435,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "held-out synthetic": read_jsonl(args.data / "test.jsonl"),
         "hard set": read_jsonl(args.data / "hard_set.jsonl"),
     }
+    swda_path = args.data / "swda_eval.jsonl"
+    if swda_path.exists():
+        swda = read_jsonl(swda_path)
+        # A fixed sample, so the row is comparable between runs without
+        # decoding all 80k utterances every time.
+        random.Random(args.seed).shuffle(swda)
+        sets["real speech (SwDA)"] = swda[: args.swda_sample]
+    else:
+        print(f"no {swda_path}; skipping the real-speech row", file=sys.stderr)
     if args.limit:
         sets = {k: v[: args.limit] for k, v in sets.items()}
 

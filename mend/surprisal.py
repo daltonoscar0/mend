@@ -277,6 +277,8 @@ def make_figure(
     per_control: Dict[str, np.ndarray],
     out_dir: Path,
     n_draws: int = 2000,
+    tag: str = "",
+    title: str = "",
 ) -> Tuple[Path, Path]:
     import matplotlib
 
@@ -341,11 +343,13 @@ def make_figure(
         ax.spines[side].set_visible(False)
     ax.margins(y=0.16)
     ax.legend(frameon=False, loc="upper right", handlelength=1.6, borderaxespad=0.2)
+    if title:
+        ax.set_title(title, pad=4)
     fig.tight_layout(pad=0.4)
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    pdf = out_dir / "surprisal_at_repair.pdf"
-    png = out_dir / "surprisal_at_repair.png"
+    pdf = out_dir / f"surprisal_at_repair{tag}.pdf"
+    png = out_dir / f"surprisal_at_repair{tag}.png"
     fig.savefig(pdf)
     fig.savefig(png, dpi=300)
     plt.close(fig)
@@ -366,6 +370,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--limit", type=int, default=0, help="cap the test sentences read")
     ap.add_argument("--draws", type=int, default=2000)
+    ap.add_argument("--tag", default="", help="suffix for the output filenames")
+    ap.add_argument("--title", default="", help="figure title")
     args = ap.parse_args(argv)
 
     rows = read_jsonl(args.data)
@@ -379,7 +385,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("no disfluencies with a full window; nothing to plot", file=sys.stderr)
         return 1
 
-    pdf, png = make_figure(per_type, per_control, args.out, args.draws)
+    pdf, png = make_figure(
+        per_type, per_control, args.out, args.draws, args.tag, args.title
+    )
 
     # Effect size: the largest gap between a disfluency profile and its own
     # fluent control, differenced instance by instance and reported wherever
@@ -422,7 +430,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     print(f"\nwrote {pdf} and {png}")
 
-    (args.out / "surprisal_effects.json").write_text(json.dumps(report, indent=2))
+    (args.out / f"surprisal_effects{args.tag}.json").write_text(
+        json.dumps(report, indent=2)
+    )
     return 0
 
 

@@ -39,3 +39,23 @@ A running log of engineering decisions made while building Mend, one line each.
 - 2026-08-04: `outputs/predictions.jsonl` is committed alongside the table so every cell can be traced back to the decoded output it came from.
 - 2026-08-04: Training logs are untracked (`outputs/*.log`); they are mostly progress-bar carriage returns. The numbers worth keeping live in `train_summary.json`, `eval_table.*` and `surprisal_effects.json`.
 - 2026-08-04: Added `jiwer` to the dependency list (not in the original set) rather than hand-rolling an edit-distance WER; pytest sits in an optional `dev` extra, so the README's setup line installs `.[dev]`.
+
+## Second pass: injector coverage, a larger test split, and real speech
+
+- 2026-08-04: Repairs now cover spans of up to three tokens, built either by substituting a word inside the span or by dropping one, so the reparandum and the repair share most of their words. That is the "the report ... the quarterly report" case the single-token version could never produce.
+- 2026-08-04: Added delayed repairs, where the speaker carries on for a few words before circling back to correct. The correction therefore arrives after the words it belongs in front of, which is what a cross-clause repair looks like.
+- 2026-08-04: A delayed repair breaks the assumption that spoken order matches written order, so `remove_disfluencies` now reassembles by clean-token index rather than by position, and the alignment test asks for a permutation rather than a monotone run.
+- 2026-08-04: A delayed correction always gets an editing phrase; without one there is nothing to distinguish "send it to Sarah before Friday, no, report" from a list.
+- 2026-08-04: False starts can now happen at a later clause boundary rather than only at the start of a sentence.
+- 2026-08-04: Fillers are never injected next to a literal use of the same word. "like like-minded people" is unresolvable for a reader too, so it is noise rather than signal.
+- 2026-08-04: 30% of the WikiText pool is now reserved for sentences that use a filler-like word literally, and eight dictation templates were added where "like", "so", "well", "no", "right", "sorry", "wait" and "know" do real work. Deleting every instance of "like" is no longer a winning strategy.
+- 2026-08-04: The new templates were checked against the hard set: zero generated sentences match a hard-set gold.
+- 2026-08-04: **The filler-as-content and repair-shape fixes were made in response to hard-set failures, so the hard set is now a development set for those categories rather than a clean held-out measurement.** SwDA takes over as the untouched benchmark.
+- 2026-08-04: Test split grown from 2k to 10k pairs, which takes the surprisal analysis from 64 usable repair windows to several hundred.
+- 2026-08-04: Real speech comes from the Switchboard Dialog Act corpus, which is freely redistributable (no LDC licence) and whose transcripts carry the Treebank-3 disfluency markup. Santa Barbara returned 404 and every other standard disfluency corpus sits behind an LDC agreement.
+- 2026-08-04: The SwDA parser emits exactly the `InjectionResult` schema, so `evaluate.py` and `surprisal.py` read real speech with no changes at all.
+- 2026-08-04: `{F}` filled pauses, `{E}` editing terms and `{D}` discourse markers are treated as removable; `{C}` coordinating conjunctions and `{A}` asides are kept, since the speaker meant to say them.
+- 2026-08-04: Only complete slash units with balanced markup are used, and utterances containing a cut-off word ("d-") are dropped, since nothing in training resembles them. That keeps 81k of 224k utterances.
+- 2026-08-04: Added a punctuation-blind WER column. Switchboard transcribers use far more commas than written prose, so the plain WER on real speech partly measures a house-style difference rather than disfluency removal.
+- 2026-08-04: Repair resolution had to stop requiring every word of a repair span to survive: real transcripts nest a repair inside the repair half of a larger one, so a perfect output scored 0.88 instead of 1.00.
+- 2026-08-04: `data/swda_eval.jsonl` is not committed; it is derived data, regenerable in one command from the URL in the README.

@@ -37,6 +37,8 @@ FILLERS: Tuple[Tuple[str, ...], ...] = (
     ("you", "know"),
 )
 
+FILLER_VOCAB = frozenset(w for phrase in FILLERS for w in phrase)
+
 INTERREGNA: Tuple[Tuple[str, ...], ...] = (
     ("no", "wait"),
     ("i", "mean"),
@@ -225,6 +227,19 @@ class InjectionConfig:
     interregnum_rate: float = 0.65
     max_fillers: int = 3
     repetition_bigram_rate: float = 0.25
+    # given a repair, how often it covers several tokens rather than one, and
+    # how often such a reparandum is a shorter first attempt rather than a
+    # wrong-word one
+    span_repair_rate: float = 0.40
+    span_drop_rate: float = 0.40
+    max_repair_span: int = 3
+    # given a single-token repair, how often the correction arrives late, after
+    # the speaker has carried on for a few words
+    delayed_repair_rate: float = 0.30
+    max_delay: int = 6
+    # given a false start, how often it happens at a later clause boundary
+    # rather than at the start of the sentence
+    false_start_midsentence_rate: float = 0.40
     lowercase: bool = True
     strip_punctuation: bool = True
 
@@ -307,6 +322,49 @@ def _swappable_positions(clean_tokens: Sequence[str]) -> List[int]:
     return out
 
 
+def _span_reparandum(
+    spoken: Sequence[str],
+    clean_tokens: Sequence[str],
+    pos: int,
+    length: int,
+    rng: random.Random,
+    allow_drop: bool,
+) -> Optional[List[str]]:
+    """Build the abandoned version of a multi-token span.
+
+    Two ways a speaker gets a phrase wrong and says it again. Either a word
+    inside it was wrong ("the annual report ... the quarterly report"), or the
+    first attempt was less specific and a modifier gets added on the second
+    pass ("the report ... the quarterly report"). Both leave the reparandum and
+    the repair sharing most of their words, which is the case the single-token
+    version never produced.
+    """
+    span = list(spoken[pos : pos + length])
+    if length < 2:
+        return None
+
+    if allow_drop:
+        # drop one non-edge token, so the reparandum is a shorter first attempt
+        inner = [k for k in range(1, length) if len(span) - 1 >= 1]
+        if inner:
+            k = rng.choice(inner)
+            shorter = span[:k] + span[k + 1 :]
+            if shorter and shorter != span:
+                return shorter
+
+    swappable = [
+        k for k in range(length) if _alternative_for(clean_tokens[pos + k], rng) is not None
+    ]
+    if not swappable:
+        return None
+    k = rng.choice(swappable)
+    alt = _alternative_for(clean_tokens[pos + k], rng)
+    if alt is None:
+        return None
+    span[k] = alt
+    return span
+
+
 # --------------------------------------------------------------------------
 # the injector
 # --------------------------------------------------------------------------
@@ -314,33 +372,120 @@ def _swappable_positions(clean_tokens: Sequence[str]) -> List[int]:
 
 def _plan_edits(
     clean_tokens: Sequence[str], cfg: InjectionConfig, rng: random.Random
-) -> Tuple[List[dict], Optional[Tuple[str, ...]]]:
+) -> Tuple[List[dict], Optional[Tuple[str, ...]], int]:
     """Choose non-overlapping edits over clean-token positions."""
     n = len(clean_tokens)
     edits: List[dict] = []
     reserved: set = set()
 
+    spoken = [spoken_form(t, cfg) for t in clean_tokens]
+
+    # False start: an abandoned clause opener, at the start of the sentence or
+    # at a later clause boundary, followed by the restart.
     fragment: Optional[Tuple[str, ...]] = None
+    fragment_at = 0
     if n >= 6 and rng.random() < cfg.false_start_rate:
-        first_two = " ".join(t.strip(_STRIP_CHARS).lower() for t in clean_tokens[:2])
-        options = [f for f in FALSE_START_FRAGMENTS if " ".join(f) != first_two]
+        boundaries = [0] + [
+            p for p in range(1, n - 3) if _ends_clause(clean_tokens[p - 1])
+        ]
+        if len(boundaries) > 1 and rng.random() < cfg.false_start_midsentence_rate:
+            fragment_at = rng.choice(boundaries[1:])
+        else:
+            fragment_at = 0
+        here = " ".join(
+            t.strip(_STRIP_CHARS).lower() for t in clean_tokens[fragment_at : fragment_at + 2]
+        )
+        options = [f for f in FALSE_START_FRAGMENTS if " ".join(f) != here]
         fragment = rng.choice(options)
-        # keep the first few positions clear so the restart resumes cleanly
-        reserved.update(range(min(3, n)))
+        # keep the restart's first few positions clear so it resumes cleanly
+        reserved.update(range(fragment_at, min(fragment_at + 3, n)))
 
     if rng.random() < cfg.repair_rate:
         candidates = [p for p in _swappable_positions(clean_tokens) if p not in reserved]
         if candidates:
             pos = rng.choice(candidates)
-            wrong = _alternative_for(clean_tokens[pos], rng)
-            if wrong is not None:
-                interregnum = (
-                    rng.choice(INTERREGNA) if rng.random() < cfg.interregnum_rate else None
-                )
-                edits.append(
-                    {"kind": "repair", "pos": pos, "wrong": wrong, "interregnum": interregnum}
-                )
-                reserved.add(pos)
+            placed = False
+
+            # A repair covering several tokens, where the reparandum and the
+            # repair end up sharing most of their words.
+            if rng.random() < cfg.span_repair_rate:
+                max_len = min(cfg.max_repair_span, n - pos)
+                for length in sorted(range(2, max_len + 1), key=lambda _: rng.random()):
+                    if any(q in reserved for q in range(pos, pos + length)):
+                        continue
+                    wrong_span = _span_reparandum(
+                        spoken,
+                        clean_tokens,
+                        pos,
+                        length,
+                        rng,
+                        allow_drop=rng.random() < cfg.span_drop_rate,
+                    )
+                    if wrong_span is None:
+                        continue
+                    interregnum = (
+                        rng.choice(INTERREGNA)
+                        if rng.random() < cfg.interregnum_rate
+                        else None
+                    )
+                    edits.append(
+                        {
+                            "kind": "span_repair",
+                            "pos": pos,
+                            "length": length,
+                            "wrong": wrong_span,
+                            "interregnum": interregnum,
+                        }
+                    )
+                    reserved.update(range(pos, pos + length))
+                    placed = True
+                    break
+
+            if not placed:
+                wrong = _alternative_for(clean_tokens[pos], rng)
+                if wrong is not None:
+                    interregnum = (
+                        rng.choice(INTERREGNA)
+                        if rng.random() < cfg.interregnum_rate
+                        else None
+                    )
+                    # A delayed repair: the speaker carries on for a few words
+                    # before going back and correcting, so the correction lands
+                    # after the material it belongs in front of.
+                    delay = 0
+                    if rng.random() < cfg.delayed_repair_rate:
+                        room = min(cfg.max_delay, n - pos - 1)
+                        options = [
+                            d
+                            for d in range(2, room + 1)
+                            if not any(q in reserved for q in range(pos, pos + d + 1))
+                        ]
+                        if options:
+                            delay = rng.choice(options)
+                    if delay:
+                        # a delayed correction needs an editing phrase, or a
+                        # listener has no way to tell a repair from a list
+                        interregnum = interregnum or rng.choice(INTERREGNA)
+                        edits.append(
+                            {
+                                "kind": "delayed_repair",
+                                "pos": pos,
+                                "delay": delay,
+                                "wrong": wrong,
+                                "interregnum": interregnum,
+                            }
+                        )
+                        reserved.update(range(pos, pos + delay + 1))
+                    else:
+                        edits.append(
+                            {
+                                "kind": "repair",
+                                "pos": pos,
+                                "wrong": wrong,
+                                "interregnum": interregnum,
+                            }
+                        )
+                        reserved.add(pos)
 
     if n >= 3 and rng.random() < cfg.repetition_rate:
         length = 2 if (n >= 5 and rng.random() < cfg.repetition_bigram_rate) else 1
@@ -354,11 +499,19 @@ def _plan_edits(
             edits.append({"kind": "repetition", "pos": pos, "length": length})
             reserved.update(range(pos, pos + length))
 
-    # filled pauses, inserted *before* a clean token
+    # Filled pauses, inserted *before* a clean token. A filler is never placed
+    # next to a literal use of the same word: "like like-minded people" is not
+    # something a reader could resolve either, so it is noise rather than a
+    # training signal.
+    def _clashes(p: int) -> bool:
+        neighbours = spoken[max(0, p - 1) : p + 2]
+        return any(w in FILLER_VOCAB for w in neighbours)
+
     slots = [
         p
         for p in range(n)
         if p not in reserved
+        and not _clashes(p)
         and (p == 0 or _ends_clause(clean_tokens[p - 1]) or _is_content_word(clean_tokens[p]))
     ]
     rng.shuffle(slots)
@@ -369,9 +522,9 @@ def _plan_edits(
         edits.append({"kind": "filler", "pos": slots[taken], "words": rng.choice(FILLERS)})
         taken += 1
 
-    order = {"filler": 0, "repair": 1, "repetition": 1}
+    order = {"filler": 0, "repair": 1, "span_repair": 1, "delayed_repair": 1, "repetition": 1}
     edits.sort(key=lambda e: (e["pos"], order[e["kind"]]))
-    return edits, fragment
+    return edits, fragment, fragment_at
 
 
 def inject(
@@ -388,7 +541,7 @@ def inject(
         return InjectionResult(disfluent_text="", clean_text="")
 
     spoken = [spoken_form(t, cfg) for t in clean_tokens]
-    edits, fragment = _plan_edits(clean_tokens, cfg, rng)
+    edits, fragment, fragment_at = _plan_edits(clean_tokens, cfg, rng)
     by_pos: Dict[int, List[dict]] = {}
     for e in edits:
         by_pos.setdefault(e["pos"], []).append(e)
@@ -401,36 +554,39 @@ def inject(
         out.append(token)
         align.append(source)
 
-    if fragment is not None:
+    def emit_interregnum(words: Optional[Sequence[str]]) -> Optional[Span]:
+        if not words:
+            return None
         start = len(out)
-        for w in fragment:
+        for w in words:
             emit(w, None)
-        anns.append(
-            Annotation(
-                type="false_start",
-                reparandum=Span(start, len(out)),
-                # the restart resumes on clean token 0, emitted immediately after
-                repair=Span(len(out), len(out) + min(3, len(clean_tokens))),
-            )
-        )
+        return Span(start, len(out))
+
+    pending: Optional[dict] = None
 
     for i, tok in enumerate(spoken):
+        if fragment is not None and i == fragment_at:
+            start = len(out)
+            for w in fragment:
+                emit(w, None)
+            anns.append(
+                Annotation(
+                    type="false_start",
+                    reparandum=Span(start, len(out)),
+                    # the restart resumes on this clean token, emitted next
+                    repair=Span(len(out), len(out) + min(3, len(clean_tokens) - i)),
+                )
+            )
+
         for e in by_pos.get(i, []):
             if e["kind"] == "filler":
-                start = len(out)
-                for w in e["words"]:
-                    emit(w, None)
-                anns.append(Annotation(type="filler", interregnum=Span(start, len(out))))
+                span = emit_interregnum(e["words"])
+                anns.append(Annotation(type="filler", interregnum=span))
             elif e["kind"] == "repair":
                 rep_start = len(out)
                 emit(e["wrong"], None)
                 rep_end = len(out)
-                inter_span = None
-                if e["interregnum"] is not None:
-                    i_start = len(out)
-                    for w in e["interregnum"]:
-                        emit(w, None)
-                    inter_span = Span(i_start, len(out))
+                inter_span = emit_interregnum(e["interregnum"])
                 anns.append(
                     Annotation(
                         type="repair",
@@ -439,6 +595,29 @@ def inject(
                         repair=Span(len(out), len(out) + 1),
                     )
                 )
+            elif e["kind"] == "span_repair":
+                rep_start = len(out)
+                for w in e["wrong"]:
+                    emit(w, None)
+                rep_end = len(out)
+                inter_span = emit_interregnum(e["interregnum"])
+                anns.append(
+                    Annotation(
+                        type="repair",
+                        reparandum=Span(rep_start, rep_end),
+                        interregnum=inter_span,
+                        repair=Span(len(out), len(out) + e["length"]),
+                    )
+                )
+            elif e["kind"] == "delayed_repair":
+                rep_start = len(out)
+                emit(e["wrong"], None)
+                pending = {
+                    "pos": i,
+                    "until": i + e["delay"],
+                    "interregnum": e["interregnum"],
+                    "reparandum": Span(rep_start, len(out)),
+                }
             elif e["kind"] == "repetition":
                 rep_start = len(out)
                 for k in range(e["length"]):
@@ -451,7 +630,25 @@ def inject(
                         repair=Span(rep_end, rep_end + e["length"]),
                     )
                 )
-        emit(tok, i)
+
+        # A delayed repair holds its corrected token back until the speaker
+        # circles round to it; everything else is emitted in place.
+        if not (pending is not None and pending["pos"] == i):
+            emit(tok, i)
+
+        if pending is not None and i == pending["until"]:
+            inter_span = emit_interregnum(pending["interregnum"])
+            fix_start = len(out)
+            emit(spoken[pending["pos"]], pending["pos"])
+            anns.append(
+                Annotation(
+                    type="repair",
+                    reparandum=pending["reparandum"],
+                    interregnum=inter_span,
+                    repair=Span(fix_start, len(out)),
+                )
+            )
+            pending = None
 
     return InjectionResult(
         disfluent_text=" ".join(out),
@@ -473,13 +670,18 @@ def remove_disfluencies(result: InjectionResult) -> str:
 
     This is the inverse of :func:`inject`: it reproduces ``result.clean_text``
     exactly, casing and punctuation included.
+
+    The surviving tokens are put back in clean-token order rather than the
+    order they were spoken. That matters for a delayed repair, where the
+    correction arrives after the words it belongs in front of: deleting the
+    reparandum alone would leave the corrected word stranded at the end.
     """
     drop = set()
     for ann in result.annotations:
         drop.update(ann.deleted_indices())
-    kept = [
+    kept = sorted(
         result.alignment[i]
         for i in range(len(result.disfluent_tokens))
         if i not in drop and result.alignment[i] is not None
-    ]
+    )
     return " ".join(result.clean_tokens[j] for j in kept)

@@ -95,12 +95,13 @@ def test_unannotated_tokens_are_exactly_the_clean_tokens():
         dropped = set()
         for ann in result.annotations:
             dropped.update(ann.deleted_indices())
-        kept_spoken = [
-            result.disfluent_tokens[i]
+        kept = [
+            (result.alignment[i], result.disfluent_tokens[i])
             for i in range(len(result.disfluent_tokens))
             if i not in dropped
         ]
-        assert kept_spoken == [spoken_form(t) for t in result.clean_tokens]
+        kept.sort(key=lambda pair: pair[0])
+        assert [tok for _, tok in kept] == [spoken_form(t) for t in result.clean_tokens]
 
 
 # --------------------------------------------------------------------------
@@ -136,10 +137,28 @@ def test_deleted_tokens_are_exactly_the_injected_ones():
         assert dropped == injected
 
 
-def test_alignment_is_monotonic_and_complete():
+def test_alignment_covers_every_clean_token_exactly_once():
+    """A delayed repair may put its correction out of order, but never twice."""
     for _, result in all_results():
         sources = [s for s in result.alignment if s is not None]
-        assert sources == list(range(len(result.clean_tokens)))
+        assert sorted(sources) == list(range(len(result.clean_tokens)))
+
+
+def test_only_delayed_repairs_break_the_spoken_order():
+    for _, result in all_results():
+        sources = [s for s in result.alignment if s is not None]
+        if sources == sorted(sources):
+            continue
+        # the sole reason for reordering is a repair whose correction is
+        # separated from its reparandum by intervening words
+        gapped = [
+            ann
+            for ann in result.annotations
+            if ann.type == "repair"
+            and ann.interregnum is not None
+            and ann.reparandum.end < ann.interregnum.start
+        ]
+        assert gapped, result.disfluent_text
 
 
 # --------------------------------------------------------------------------
@@ -176,8 +195,7 @@ def test_repetition_reparandum_equals_repair():
     assert seen > 0
 
 
-def test_repair_swaps_within_a_category():
-    groups = [set(g) for g in SWAP_GROUPS]
+def test_repair_reparandum_differs_from_its_repair():
     known_interregna = {" ".join(x) for x in INTERREGNA}
     seen = 0
     for _, result in all_results():
@@ -185,40 +203,93 @@ def test_repair_swaps_within_a_category():
             if ann.type != "repair":
                 continue
             seen += 1
-            wrong = _tokens(result, ann.reparandum)[0]
-            right = _tokens(result, ann.repair)[0]
-            assert wrong != right
-            same_group = any(wrong in g and right in g for g in groups)
-            assert same_group or (wrong.isdigit() and right.isdigit())
+            assert _tokens(result, ann.reparandum) != _tokens(result, ann.repair)
             if ann.interregnum is not None:
                 assert " ".join(_tokens(result, ann.interregnum)) in known_interregna
     assert seen > 0
 
 
-def test_repair_span_holds_the_correct_word():
+def test_single_token_repairs_swap_within_a_category():
+    groups = [set(g) for g in SWAP_GROUPS]
+    seen = 0
+    for _, result in all_results():
+        for ann in result.annotations:
+            if ann.type != "repair" or len(ann.reparandum) != 1 or len(ann.repair) != 1:
+                continue
+            seen += 1
+            wrong = _tokens(result, ann.reparandum)[0]
+            right = _tokens(result, ann.repair)[0]
+            same_group = any(wrong in g and right in g for g in groups)
+            assert same_group or (wrong.isdigit() and right.isdigit())
+    assert seen > 0
+
+
+def test_repair_span_holds_the_correct_words():
     for _, result in all_results():
         for ann in result.annotations:
             if ann.type != "repair":
                 continue
-            clean_idx = result.alignment[ann.repair.start]
-            assert clean_idx is not None
-            assert _tokens(result, ann.repair)[0] == spoken_form(
-                result.clean_tokens[clean_idx]
-            )
+            for offset in range(len(ann.repair)):
+                clean_idx = result.alignment[ann.repair.start + offset]
+                assert clean_idx is not None
+                assert _tokens(result, ann.repair)[offset] == spoken_form(
+                    result.clean_tokens[clean_idx]
+                )
+
+
+def test_multi_token_repairs_overlap_their_reparandum():
+    """The point of a span repair: both halves share most of their words."""
+    seen = 0
+    for _, result in all_results():
+        for ann in result.annotations:
+            if ann.type != "repair" or len(ann.repair) < 2:
+                continue
+            seen += 1
+            wrong = set(_tokens(result, ann.reparandum))
+            right = set(_tokens(result, ann.repair))
+            assert wrong & right, result.disfluent_text
+    assert seen > 0
+
+
+def test_delayed_repairs_put_words_between_the_two_halves():
+    seen = 0
+    for _, result in all_results():
+        for ann in result.annotations:
+            if ann.type != "repair" or ann.interregnum is None:
+                continue
+            if ann.reparandum.end == ann.interregnum.start:
+                continue
+            seen += 1
+            # the intervening tokens are ordinary clean words, kept as they are
+            between = range(ann.reparandum.end, ann.interregnum.start)
+            assert all(result.alignment[i] is not None for i in between)
+            # and the correction belongs where the reparandum stood
+            assert result.alignment[ann.repair.start] < result.alignment[ann.reparandum.end]
+    assert seen > 0
 
 
 def test_false_start_precedes_the_restart():
     seen = 0
+    at_start = 0
+    mid_sentence = 0
     for _, result in all_results():
         for ann in result.annotations:
             if ann.type != "false_start":
                 continue
             seen += 1
-            assert ann.reparandum.start == 0
             assert ann.repair.start == ann.reparandum.end
-            # the restart resumes on the first clean token
-            assert result.alignment[ann.repair.start] == 0
+            resumes_at = result.alignment[ann.repair.start]
+            assert resumes_at is not None
+            if ann.reparandum.start == 0:
+                at_start += 1
+                assert resumes_at == 0
+            else:
+                mid_sentence += 1
+                # a mid-sentence restart follows a clause boundary
+                previous = result.clean_tokens[resumes_at - 1]
+                assert previous.rstrip("\"”'’)").endswith((",", ";", ":"))
     assert seen > 0
+    assert at_start > 0 and mid_sentence > 0
 
 
 def test_boundary_index_points_at_the_interruption():

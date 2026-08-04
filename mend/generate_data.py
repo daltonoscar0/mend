@@ -115,6 +115,16 @@ TEMPLATES: Tuple[str, ...] = (
     "Check whether {name} sent the {doc} before {day} {part_of_day}.",
     "Bring the {colour} {object} to {place} by {time}.",
     "Split the {doc} into {count} sections and send it to {name}.",
+    # Frames where a filler-like word is doing real work. Without these the
+    # model learns that every "like" and every "so" is noise.
+    "Tell {name} I like the new {doc}.",
+    "The {adj} {room} is free, so book it for {day}.",
+    "Something like the {colour} {object} would work well.",
+    "Ask {name} whether they know the {topic} figures.",
+    "No one has signed the {doc} yet, so chase {name}.",
+    "Say I am sorry to {name} about the {day} {part_of_day} call.",
+    "Wait for {name} at {place} and bring the {doc}.",
+    "That is right, the {doc} is due on {month} {number}.",
 )
 
 
@@ -217,8 +227,29 @@ def _clean_sentences_from_line(line: str) -> Iterable[str]:
         yield sent
 
 
-def load_wikitext_sentences(limit: int, verbose: bool = True) -> List[str]:
-    """Pull well-formed sentences from WikiText, largest corpus first."""
+# Words that are filled pauses or editing terms in one context and ordinary
+# content in another. The model was over-deleting all of them, because the
+# injector only ever inserted them as noise.
+AMBIGUOUS_WORDS = frozenset(
+    "like well so no wait sorry mean right actually know okay say".split()
+)
+
+
+def _has_ambiguous_word(sentence: str) -> bool:
+    return any(
+        w.strip(".,;:!?\"'()").lower() in AMBIGUOUS_WORDS for w in sentence.split()
+    )
+
+
+def load_wikitext_sentences(
+    limit: int, verbose: bool = True, ambiguous_share: float = 0.30
+) -> List[str]:
+    """Pull well-formed sentences from WikiText, largest corpus first.
+
+    A share of the pool is reserved for sentences that use a filler-like word
+    literally ("nations like individuals", "well water", "so many people"), so
+    that deleting every instance of *like* is not a winning strategy.
+    """
     if limit <= 0:
         return []
     try:
@@ -233,21 +264,28 @@ def load_wikitext_sentences(limit: int, verbose: bool = True) -> List[str]:
                 print(f"loading {config} ...", file=sys.stderr)
             ds = load_dataset("wikitext", config, split="train", streaming=True)
             seen = set()
-            out: List[str] = []
+            want_ambiguous = int(limit * ambiguous_share)
+            want_plain = limit - want_ambiguous
+            ambiguous: List[str] = []
+            plain: List[str] = []
             for row in ds:
                 for sent in _clean_sentences_from_line(row["text"]):
                     if sent in seen:
                         continue
                     seen.add(sent)
-                    out.append(sent)
-                    if len(out) >= limit:
-                        if verbose:
-                            print(f"  {len(out)} sentences from {config}", file=sys.stderr)
-                        return out
+                    if _has_ambiguous_word(sent):
+                        if len(ambiguous) < want_ambiguous:
+                            ambiguous.append(sent)
+                    elif len(plain) < want_plain:
+                        plain.append(sent)
+                if len(ambiguous) >= want_ambiguous and len(plain) >= want_plain:
+                    break
+            out = plain + ambiguous
             if out:
                 if verbose:
                     print(
-                        f"  {len(out)} sentences from {config} (corpus exhausted)",
+                        f"  {len(out)} sentences from {config} "
+                        f"({len(ambiguous)} using a filler word literally)",
                         file=sys.stderr,
                     )
                 return out
