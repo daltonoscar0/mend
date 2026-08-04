@@ -33,7 +33,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from mend.generate_data import read_jsonl
 from mend.injector import FILLERS
 
-# Every word that can appear as part of a filled pause.
+# Every word the injector can use as a filled pause. Real speech uses a wider
+# range ("oh", "well", "so"), so the scored vocabulary is this set plus
+# whatever a given row actually annotates as a filler.
 FILLER_VOCAB = frozenset(w for phrase in FILLERS for w in phrase)
 
 _PUNCT = re.compile(r"[^\w\s']|_")
@@ -61,6 +63,17 @@ def word_tokens(text: str) -> List[str]:
         if tok:
             out.append(tok)
     return out
+
+
+def count_form(token: str) -> Optional[str]:
+    """A single annotation token in the same shape the counters use.
+
+    Annotation tokens keep internal hyphens ("uh-huh") while the counters strip
+    them, so the two have to be put through the same normaliser before their
+    keys can be compared.
+    """
+    parts = word_tokens(token)
+    return parts[0] if parts else None
 
 
 # --------------------------------------------------------------------------
@@ -119,6 +132,31 @@ def word_error_rate_spoken(hyps: Sequence[str], golds: Sequence[str]) -> float:
     return float(jiwer.wer(refs, outs))
 
 
+def filler_vocab_for(row: dict) -> frozenset:
+    """Filler words to score in this row.
+
+    The global set alone would miss the fillers real transcripts use, and the
+    row's own annotations alone would miss the case that matters most: a word
+    deleted as a filler when this row used it literally. Both are needed.
+    """
+    tokens = row.get("disfluent_tokens")
+    anns = row.get("annotations")
+    if not tokens or not anns:
+        return FILLER_VOCAB
+    extra = set()
+    for ann in anns:
+        if ann["type"] != "filler":
+            continue
+        span = ann.get("interregnum")
+        if span is None:
+            continue
+        for i in range(span["start"], span["end"]):
+            word = count_form(tokens[i])
+            if word:
+                extra.add(word)
+    return frozenset(FILLER_VOCAB | extra)
+
+
 def gold_filler_deletions(row: dict) -> Tuple[Counter, Counter]:
     """Filler-vocabulary tokens cleanup should remove, split by why.
 
@@ -139,6 +177,7 @@ def gold_filler_deletions(row: dict) -> Tuple[Counter, Counter]:
         diff = Counter(word_tokens(row["disfluent"])) - Counter(word_tokens(row["clean"]))
         return Counter({w: c for w, c in diff.items() if w in FILLER_VOCAB}), Counter()
 
+    vocab = filler_vocab_for(row)
     fillers: Counter = Counter()
     others: Counter = Counter()
     for ann in anns:
@@ -148,8 +187,9 @@ def gold_filler_deletions(row: dict) -> Tuple[Counter, Counter]:
             if span is None:
                 continue
             for i in range(span["start"], span["end"]):
-                if tokens[i] in FILLER_VOCAB:
-                    bucket[tokens[i]] += 1
+                word = count_form(tokens[i])
+                if word and word in vocab:
+                    bucket[word] += 1
     return fillers, others
 
 
@@ -186,10 +226,11 @@ def filler_removal_counts(row: dict, hyp: str) -> PRF:
     any did.
     """
     gold_del, other_del = gold_filler_deletions(row)
+    vocab = filler_vocab_for(row)
     src = Counter(word_tokens(row["disfluent"]))
     out = Counter(word_tokens(hyp))
     prf = PRF()
-    for word in (set(gold_del) | (FILLER_VOCAB & set(src))) - set(other_del):
+    for word in (set(gold_del) | (vocab & set(src))) - set(other_del):
         wanted = gold_del.get(word, 0)
         removed = max(0, src.get(word, 0) - out.get(word, 0))
         prf.tp += min(wanted, removed)
