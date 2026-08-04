@@ -309,17 +309,24 @@ def load_model(path: Path, device: Optional[str] = None):
 
 
 def run_model(model, tokenizer, device: str, texts: Sequence[str], batch: int = 32) -> List[str]:
+    import torch
+
     from mend.train import PREFIX
 
     out: List[str] = []
     for i in range(0, len(texts), batch):
         chunk = [PREFIX + t for t in texts[i : i + batch]]
         enc = tokenizer(
-            chunk, return_tensors="pt", padding=True, truncation=True, max_length=192
+            chunk, return_tensors="pt", padding=True, truncation=True, max_length=192,
+            pad_to_multiple_of=8,
         ).to(device)
         gen = model.generate(**enc, max_new_tokens=160, num_beams=1, do_sample=False)
         out.extend(tokenizer.batch_decode(gen, skip_special_tokens=True))
         print(f"  decoded {min(i + batch, len(texts))}/{len(texts)}", end="\r", file=sys.stderr)
+        # See the note in train.py: the MPS allocator pools per shape and holds
+        # on to everything unless it is told otherwise.
+        if device == "mps" and (i // batch) % 20 == 19:
+            torch.mps.empty_cache()
     print(file=sys.stderr)
     return out
 

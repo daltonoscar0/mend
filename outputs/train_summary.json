@@ -1,0 +1,13 @@
+{
+  "device": "mps",
+  "model": "google/flan-t5-small",
+  "lora": false,
+  "learning_rate": 5e-05,
+  "batch_size": 32,
+  "epochs": 2,
+  "train_pairs": 50000,
+  "train_runtime_s": 3250.7,
+  "first_eval_loss": 0.17822124063968658,
+  "best_eval_loss": 0.13099755346775055,
+  "final_train_loss": 0.23743680144302065
+}
