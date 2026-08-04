@@ -1,0 +1,29 @@
+[project]
+name = "mend"
+version = "0.1.0"
+description = "Spoken-to-written dictation cleanup: filler removal, self-repair resolution, punctuation restoration"
+requires-python = ">=3.10"
+dependencies = [
+    "torch==2.9.*",
+    "transformers==4.57.*",
+    "datasets==4.4.*",
+    "peft==0.18.*",
+    "accelerate==1.12.*",
+    "matplotlib==3.10.*",
+    "numpy==2.3.*",
+    "sentencepiece==0.2.*",
+    "jiwer==4.0.*",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.*"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["mend"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

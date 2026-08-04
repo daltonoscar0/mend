@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.DS_Store
+
+# generated data dumps
+data/*.jsonl
+!data/hard_set.jsonl
+
+# training artifacts
+outputs/checkpoints/
+outputs/model
+outputs/runs/
+*.pt
+*.safetensors
+
+# hf caches
+.cache/
