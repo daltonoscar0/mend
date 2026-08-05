@@ -84,7 +84,7 @@ def mix_real_speech(
     undoing the injector. Real self-repairs are not: the speaker abandons a
     word they were plausibly about to say, the correction can arrive a clause
     late, and there is often no editing phrase to mark the seam. A model that
-    has only seen synthetic pairs resolves fewer than a quarter of them.
+    has only seen synthetic pairs resolves about a third of them (0.326).
 
     The real rows are shuffled before the cap is applied, so the sample keeps
     the corpus's natural composition -- roughly half of SwDA utterances carry

@@ -32,13 +32,14 @@ Measured on 293 Switchboard conversations neither model was trained on. Those tw
 intervals do not overlap, and that is the one comparison in this repo with a
 comfortable margin.
 
-Almost nothing else does. The mixed model also looks better on the synthetic
-split and on the hand-written hard set, and in both cases the intervals overlap —
-so the honest reading is "did not regress", not "improved". A hard-set claim that
-was in this README has been withdrawn for exactly that reason, and a second
-claim was withdrawn and then reinstated when the evidence for withdrawing it
-turned out to come from a bug. Both episodes are written up below rather than
-quietly edited away.
+Almost nothing else does. On the synthetic split and the hard set the two models
+are not separated: some metrics tick up, synthetic exact match and hard-set
+filler F1 tick down, and every interval overlaps. The honest reading there is
+"did not regress", not "improved" — and a claim in an earlier version of this
+README that read it the second way has been withdrawn. A separate claim was
+withdrawn and then reinstated when the evidence for withdrawing it turned out to
+come from a bug; that episode is written up in full below, rather than quietly
+edited away.
 
 Half of real self-repairs are still unresolved. That is the honest ceiling.
 
@@ -115,9 +116,9 @@ kept and re-scored on that same held-out set, so the before/after comparison
 below is like for like. The zero-shot transfer finding is preserved as its own
 row rather than overwritten.
 
-The surprisal analysis reads the *whole* parse, not the held-out split: it
-measures a property of human speech using a separate language model, so which
-conversations Mend trained on has no bearing on it.
+The surprisal analysis samples across the *whole* parse rather than the held-out
+split: it measures a property of human speech using a separate language model, so
+which conversations Mend trained on has no bearing on it.
 
 ## Results
 
@@ -135,7 +136,7 @@ The copy baseline returns its input with a trivial rule applied — capitalise t
 first word, uppercase standalone *i*, add a full stop — which isolates how much of
 each score is punctuation restoration alone.
 
-| System | Set | N | Exact match | WER | WER (words only) | Filler removal F1 | Repair resolution | Repairs scored |
+| System | Set | N | Exact match | WER | WER (words only) | Filler removal F1 | Repair resolution | Sentences with a repair |
 |---|---|---|---|---|---|---|---|---|
 | Copy baseline | held-out synthetic | 10000 | 0.030 [0.027, 0.033] | 0.310 | 0.132 | 0.000 | 0.000 [0.000, 0.000] | 2267 |
 | Mend (synthetic only) | held-out synthetic | 10000 | 0.649 [0.639, 0.658] | 0.058 | 0.012 | 0.995 | 0.848 [0.832, 0.861] | 2267 |
@@ -190,7 +191,7 @@ words when a sentence opens the way a disfluency does. The last case is the
 worst kind of error a cleanup tool can make: it did not fail to tidy the input,
 it threw away half of what the speaker said.
 
-It still gets plenty wrong:
+The mixed model still gets plenty wrong:
 
 ```
 in    and then i it's like well the thrill is gone
@@ -270,9 +271,10 @@ per-instance differences):
 The real-speech result is the one worth quoting: 548 genuine human self-repairs,
 the peak landing exactly on the interruption point, an effect of about five bits.
 
-This analysis reads the whole corpus, both the conversations Mend trained on and
-the ones it did not, because it measures human speech with a separate language
-model and Mend plays no part in it.
+This analysis draws its 20,000-utterance sample from across the whole corpus,
+both the conversations Mend trained on and the ones it did not, because it
+measures human speech with a separate language model and Mend plays no part in
+it.
 
 Note the synthetic repair peak sits one position *early*, on the reparandum,
 where the real one sits exactly on the interruption. That difference survives a
@@ -346,10 +348,10 @@ leaves no matching position in the fluent control.
 The single most misleading number in this repo is **0.848** — the synthetic-only
 model's repair resolution on held-out synthetic data. The same model scores
 **0.326** on real speech. Anyone reading the first as evidence of a dictation
-cleanup system would be wrong by roughly a factor of three.
+cleanup system would be overestimating it by a factor of two and a half.
 
 That gap is the whole point. Injected repairs are mostly category substitutions
-(88%), two thirds of them announced by one of four stock editing phrases; real
+(88%), and 69% of them are announced by one of four stock editing phrases; real
 self-repairs are far less uniform. Whether a differently shaped generator could
 have closed more of the gap was never tested — the injector was widened once and
 the pre-widening model was never scored on real speech.
@@ -396,7 +398,8 @@ corpus that draws the removable/keepable line somewhere else.
   The model is better calibrated on conversational fillers and slightly worse on
   the adversarial dictation cases.
 * **Fragments are still unhandled**, and not for the reason this README used to
-  give. *it sure does ma make a difference* keeps the cut-off *ma*. Training does
+  give. *it sure does ma make a difference* — a validation-split row rather than
+  one of the scored held-out cases — keeps the cut-off *ma*. Training does
   contain such utterances — the filter meant to remove them never fired — but the
   hyphen is stripped on the way in, so *ma-* arrives as *ma* with nothing marking
   it as a fragment, and the model has no signal to learn from.
@@ -434,8 +437,8 @@ their reparandum, corrections that arrive a clause late, mid-sentence false
 starts, literal filler words in a third of targets. That moved hard-set exact
 match 0.530 → 0.550, trading multi-repair and nested repair for overlapping and
 cross-clause. The hard set cannot separate either move at n=100 — widening the
-generator visibly rearranged the failures, and the gain that is firmly measured
-anywhere is on real speech.
+generator visibly rearranged the failures, and the only gain that is firmly
+measured anywhere is on real speech.
 
 ### On the status of the hard set
 
@@ -518,9 +521,11 @@ edge punctuation removed — so pasting text that already has capitals and comma
 works; `--raw` skips that. `--show-input` prints both sides.
 
 `outputs/model` points at the model trained with real speech mixed in: clearly
-better on real speech, and no worse on the synthetic and hard sets. Read the
-accuracy section before trusting it on anything — it removes filled pauses and
-restores punctuation reliably, and resolves about half of real self-repairs.
+better on real speech, not separated from the other model on the synthetic split,
+and better on hard-set exact match at the cost of filler-as-content (F1 0.667 →
+0.571). Read the Results and Honest summary sections above before trusting it on
+anything — it removes filled pauses and restores punctuation reliably, and
+resolves about half of real self-repairs.
 
 ## Running the stages
 
