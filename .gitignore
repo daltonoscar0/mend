@@ -10,7 +10,9 @@ data/*.jsonl
 
 # training artifacts
 outputs/checkpoints/
-outputs/model
+outputs/model*
+outputs/mixed/
+outputs/synthetic_only/
 outputs/runs/
 *.pt
 *.safetensors
@@ -20,3 +22,6 @@ outputs/runs/
 
 # training logs
 outputs/*.log
+
+# packaging
+*.egg-info/
