@@ -52,7 +52,9 @@ Half of real self-repairs are still unresolved. That is the honest ceiling.
   schema, so nothing downstream needs to know whether a pair is synthetic or real.
 * two fine-tuned models — flan-t5-small, seq2seq, `clean up: {disfluent}` →
   `{clean}` — one trained on synthetic pairs alone and one with real speech mixed
-  in, so the difference between them is measurable rather than asserted.
+  in, so the difference between them is measurable rather than asserted. The
+  second is on the Hub as
+  [`daltonoscar0/mend-flan-t5-small`](https://huggingface.co/daltonoscar0/mend-flan-t5-small).
 * one evaluation table, `outputs/eval_table.md`, and the
   surprisal-at-repair-boundary figures.
 * `DECISIONS.md` — one line per engineering decision, including the ones that
@@ -505,7 +507,25 @@ pick their device automatically: CUDA if present, otherwise Apple MPS, otherwise
 
 ## Using it
 
-Once there is a model at `outputs/model`:
+The trained model is on the Hub, so nothing needs training to try it:
+
+```python
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+model = AutoModelForSeq2SeqLM.from_pretrained("daltonoscar0/mend-flan-t5-small")
+tok = AutoTokenizer.from_pretrained("daltonoscar0/mend-flan-t5-small")
+
+text = "um send the the report to john no wait sarah by friday"
+ids = tok("clean up: " + text, return_tensors="pt")
+print(tok.decode(model.generate(**ids, max_new_tokens=160)[0], skip_special_tokens=True))
+# Send the report to Sarah by Friday.
+```
+
+The `clean up: ` prefix is not optional — it is the task prefix the model was
+fine-tuned with. Input should be lowercased with edge punctuation removed, which
+is the register it saw in training.
+
+For the CLI, once there is a model at `outputs/model`:
 
 ```console
 $ mend-clean "um send the the report to john no wait sarah by friday"
