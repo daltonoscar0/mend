@@ -34,11 +34,11 @@ comfortable margin.
 
 Almost nothing else does. The mixed model also looks better on the synthetic
 split and on the hand-written hard set, and in both cases the intervals overlap —
-so the honest reading is "did not regress", not "improved". Two further claims
-that were in this README have since been withdrawn: a hard-set result that 100
-sentences could not support, and an argument about the generator that did not
-survive being re-run with a larger language model. Both retractions are below,
-with the reasoning left intact.
+so the honest reading is "did not regress", not "improved". A hard-set claim that
+was in this README has been withdrawn for exactly that reason, and a second
+claim was withdrawn and then reinstated when the evidence for withdrawing it
+turned out to come from a bug. Both episodes are written up below rather than
+quietly edited away.
 
 Half of real self-repairs are still unresolved. That is the honest ceiling.
 
@@ -263,7 +263,7 @@ per-instance differences):
 
 | Type | Synthetic | Real speech (SwDA) |
 |---|---|---|
-| Repair | +3.84 bits [+2.86, +4.84] at −1 (n=311) | **+4.82 bits [+4.42, +5.21] at 0** (n=548) |
+| Repair | +4.57 bits [+3.44, +5.64] at **−1** (n=253) | **+4.82 bits [+4.42, +5.21] at 0** (n=548) |
 | Repetition | +2.91 bits [+2.23, +3.58] at 0 (n=447) | +5.75 bits [+5.45, +6.05] at 0 (n=653) |
 | Filled pause | +5.22 bits [+4.80, +5.65] at +1 (n=1652) | +3.09 bits [+2.76, +3.43] at 0 (n=1430) |
 
@@ -272,10 +272,11 @@ the peak landing exactly on the interruption point, an effect of about five bits
 
 This analysis reads the whole corpus, both the conversations Mend trained on and
 the ones it did not, because it measures human speech with a separate language
-model and Mend plays no part in it. An earlier run over a different 20,000-utterance
-sample of the same corpus gave +4.57 [+4.17, +4.98] on 536 repairs, +5.66 on
-repetitions and +3.42 on filled pauses — the same three peaks in the same places,
-which is the reassuring part.
+model and Mend plays no part in it.
+
+Note the synthetic repair peak sits one position *early*, on the reparandum,
+where the real one sits exactly on the interruption. That difference survives a
+much larger language model, and is discussed below.
 
 ### Does this survive a bigger language model?
 
@@ -286,43 +287,59 @@ family:
 
 | Type | Real speech, 160m | Real speech, 1.4b | Synthetic, 160m | Synthetic, 1.4b |
 |---|---|---|---|---|
-| Repair | +4.82 at 0 | +4.93 at 0 | +3.84 at **−1** | +5.06 at **0** |
+| Repair | +4.82 at 0 | +4.93 at 0 | +4.57 at **−1** | +4.60 at **−1** |
 | Repetition | +5.75 at 0 | +5.83 at 0 | +2.91 at 0 | +5.26 at 0 |
-| Filled pause | +3.09 at 0 | +2.43 at 0 | +5.22 at **+1** | +5.81 at **0** |
+| Filled pause | +3.09 at 0 | +2.43 at 0 | +5.22 at +1 | +5.81 at 0 |
 
-**On real speech the result is solid.** Every peak stays exactly at the
-interruption point and the two largest effects barely move — repair +4.82 →
-+4.93, repetition +5.75 → +5.83, well inside each other's intervals. Only the
-filled-pause magnitude shifts down materially (+3.09 → +2.43). The headline
-claim — that a language model's surprise spikes at the interruption, worth about
-five bits, over 548 genuine human self-repairs — does not depend on model size.
+**Every peak position holds except one.** On real speech all three stay exactly
+on the interruption, and the two largest effects barely move — repair +4.82 →
++4.93, repetition +5.75 → +5.83, well inside each other's intervals. On synthetic
+data the repair peak stays one position early at −1 under both models. The
+exception is the synthetic filled pause, which moves from +1 to 0; that one
+position should not be quoted.
 
-**On synthetic data it is not solid, and this cost me a conclusion.** An earlier
-version of this README argued that the two panels differed in a way that
-indicted the generator: on real speech all three peaks sat at 0, while on
-synthetic data the repair peak sat one position *earlier*, on the reparandum.
-The explanation offered was that the injector's reparandum is a word drawn at
-random from a category — "send it to *Omar*" when the sentence is about Sarah —
-and a random substitution is inherently surprising, whereas a real speaker's
-abandoned word is something they were plausibly about to say.
+Magnitudes are much less stable, and the synthetic column shows why they should
+not be leaned on: synthetic repetition goes +2.91 → +5.26 and real filled pause
+goes +3.09 → +2.43 for no reason other than model size.
 
-pythia-1.4b puts all three synthetic peaks at 0, exactly like real speech. The
-panels no longer differ, so the offset was an artefact of the smaller model
-rather than a fingerprint of the generator. Looking back at the 160m numbers the
-signal was always thin: the synthetic repair effect was +3.84 at −1 against
-+3.26 at 0, two nearly equal values with overlapping intervals, and `argmax`
-had to pick one.
+So **the difference between the two panels is real**: on real speech the surprise
+waits for the interruption, and on synthetic data it arrives a word early, on the
+reparandum. That is what you would expect from the way the injector works — its
+reparandum is usually a word drawn at random from a category, "send it to *Omar*"
+when the sentence is about Sarah, and a random substitution is surprising in
+itself, whereas a real speaker's abandoned word is something they were plausibly
+about to say. The synthetic figure is measuring some of the generator's
+randomness alongside the phenomenon.
 
-The criticism of the injector still stands on its own terms — its reparandum
-usually *is* a random category substitution — 88% of injected repairs are, and
-69% carry one of four stock editing phrases — which is a fact about the code
-rather than something this analysis discovered. What is gone is the evidence that the
-surprisal figure demonstrated it.
+#### A retraction, retracted
+
+An earlier version of this section withdrew that conclusion. The first pythia-1.4b
+run put all three synthetic peaks at 0, which looked like clear evidence that the
+−1 offset had been an artefact of the smaller model, so the argument above was
+struck out and replaced with a retraction.
+
+The retraction was wrong, and a bug caused it. `clean_position` located the
+matching position in the fluent control by counting surviving tokens, which is
+only correct if the disfluent sentence visits the clean tokens in clean order.
+The injector's *delayed repair* deliberately breaks that — it holds the corrected
+token back and emits it a few words later — so 58 of the 311 synthetic repair
+windows were reading their control at an unrelated word. Those 58 were, by
+construction, all repairs. Removing them (`matched_clean_position`, which
+requires the words before the boundary to map onto a contiguous prefix) leaves
+253 clean instances, and both language models then agree on −1.
+
+Real transcripts are always in order — 0 of 81,107 rows have a non-monotone
+alignment — so no real-speech number was ever affected by this.
+
+The sequence is worth stating plainly: a claim, a retraction on apparently good
+evidence, and then the retraction itself overturned by finding the bug that
+produced it. The intermediate numbers are in `DECISIONS.md`.
 
 Two further caveats. The reported effects are paired against each type's own
 control, while the dashed line pools all control windows, so a gap read straight off
 a plot will not reproduce the table. And only disfluencies with a complete ±5 window
-on both sides are analysed.
+on both sides are analysed, minus the 105 synthetic instances whose delayed repair
+leaves no matching position in the fluent control.
 
 ## Honest summary
 
@@ -444,11 +461,11 @@ transcript, never a recognition hypothesis, so it carries none of the substituti
 errors a real recogniser makes. The injector's repairs are still drawn from closed
 word categories. Cut-off words reach training with their hyphen stripped, so
 nothing distinguishes a fragment from a real word and fragments are unhandled. The surprisal analysis rests
-on 548 real repairs and its real-speech peaks hold at nine times the model size,
-but the synthetic peaks do not, so any claim resting on where a synthetic peak
-falls should be treated as a property of the language model until it has been
-checked at more than one scale — as one such claim in this README turned out to
-be. Absolute bit values shift with model size in both.
+on 548 real repairs, and every peak position but one holds at nine times the
+model size. The exception is the synthetic filled pause, which moves from +1 to
+0, so that one position should not be quoted. Absolute bit values are much less
+stable than positions — synthetic repetition moves +2.91 to +5.26 for no reason
+but model size — so read the magnitudes as approximate throughout.
 
 ## A note on `data/hard_set.jsonl`
 
