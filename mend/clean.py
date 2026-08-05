@@ -56,8 +56,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if not args.model.exists():
         print(
-            f"no model at {args.model}. Train one first:\n"
-            f"  python -m mend.train --batch 32 --epochs 2 --eval-steps 400",
+            f"no model at {args.model}. Build the data and train one first;\n"
+            "it takes about an hour on a laptop:\n"
+            "  python -m mend.generate_data --train 50000 --val 2000 --test 10000\n"
+            "  python -m mend.train --batch 32 --epochs 2 --eval-steps 400 "
+            "--real 25000 --out outputs/mixed\n"
+            "  ln -sfn mixed/model outputs/model\n"
+            "--real needs the SwDA parse; see 'Running the stages' in the README.",
             file=sys.stderr,
         )
         return 1
