@@ -1,5 +1,8 @@
 # Mend
 
+<!-- replace OWNER with your GitHub username once this is pushed -->
+[![tests](https://github.com/OWNER/mend/actions/workflows/tests.yml/badge.svg)](https://github.com/OWNER/mend/actions/workflows/tests.yml)
+
 Mend turns spoken dictation into written text. It removes filled pauses, resolves
 self-repairs, and restores casing and punctuation:
 
@@ -66,7 +69,7 @@ resolves about half of real self-repairs.
 ## Running the stages
 
 ```bash
-# 1. tests
+# 1. tests -- 143 of them, no checkpoint and no corpus download needed
 pytest
 
 # 2. synthetic training data: 50k/2k/10k pairs into data/
@@ -107,6 +110,13 @@ mend-clean "um send the the report to john no wait sarah by friday"
 
 Every stage is seeded and re-runnable. Do not run the surprisal pass next to
 training on a 16 GB machine; together they exhaust memory and both crawl.
+
+The test suite builds its own data and stubs the language model, so it runs on a
+fresh clone in about five seconds and needs no GPU — which is what lets CI run
+it on every push. It covers the injector, the SwDA parser and split, the
+training mix, the scoring functions and the surprisal windowing. `train.py`'s
+loop and `generate_data.py`'s WikiText reader are not covered; both are thin
+wrappers over other people's libraries and neither produces a reported number.
 
 ## Real speech
 
