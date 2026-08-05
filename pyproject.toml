@@ -3,6 +3,10 @@ name = "mend"
 version = "0.1.0"
 description = "Spoken-to-written dictation cleanup: filler removal, self-repair resolution, punctuation restoration"
 requires-python = ">=3.10"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Oscar Dalton" }]
 dependencies = [
     "torch==2.9.*",
     "transformers==4.57.*",
@@ -18,11 +22,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest==8.4.*"]
 
+[project.urls]
+Homepage = "https://github.com/daltonoscar0/mend"
+Source = "https://github.com/daltonoscar0/mend"
+
 [project.scripts]
 mend-clean = "mend.clean:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]  # PEP 639 licence metadata
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]

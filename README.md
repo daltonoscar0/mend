@@ -1,7 +1,6 @@
 # Mend
 
-<!-- replace OWNER with your GitHub username once this is pushed -->
-[![tests](https://github.com/OWNER/mend/actions/workflows/tests.yml/badge.svg)](https://github.com/OWNER/mend/actions/workflows/tests.yml)
+[![tests](https://github.com/daltonoscar0/mend/actions/workflows/tests.yml/badge.svg)](https://github.com/daltonoscar0/mend/actions/workflows/tests.yml)
 
 Mend turns spoken dictation into written text. It removes filled pauses, resolves
 self-repairs, and restores casing and punctuation:
@@ -207,6 +206,57 @@ resamples, resampling **sentences** — a sentence is what was independently dra
 from the corpus, and the several disfluencies inside one are not independent of
 each other, so resampling repairs instead would give intervals that are too
 narrow.
+
+### What that difference looks like
+
+Real Switchboard utterances from the held-out conversations, with both models'
+output. These are the disfluency cases rather than the punctuation ones — the
+speaker abandons something and starts again, and the question is whether the
+abandoned material survives into the written form:
+
+```
+in    they had they've scaled everything down so much
+gold  They've scaled everything down so much.
+syn   They had they scaled everything down so much.        <- keeps both attempts
+mix   They've scaled everything down so much.
+
+in    i think i heard that was just one was just out
+gold  I think I heard that was just out.
+syn   I think I heard that was just one was just out.      <- keeps both attempts
+mix   I think I heard that was just out.
+
+in    so it work it did end up working out pretty well
+gold  So it did end up working out pretty well?
+syn   So it work, it did end up working out pretty well.   <- punctuates the seam
+mix   So it did end up working out pretty well.
+
+in    are you going to go to east texas for that
+gold  Are you going to go to East Texas for that?
+syn   Go to Texas for that.                                <- deletes real words
+mix   Are you going to go to East Texas for that?
+```
+
+The synthetic-only model has two characteristic failures here, and they pull in
+opposite directions. It leaves an abandoned phrase in place when the repair does
+not look like the injector's stock `no wait X` shape, and it deletes genuine
+words when a sentence opens the way a disfluency does. The last case is the
+worst kind of error a cleanup tool can make: it did not fail to tidy the input,
+it threw away half of what the speaker said.
+
+It still gets plenty wrong:
+
+```
+in    and then i it's like well the thrill is gone
+gold  And then it's like the thrill is gone.
+mix   And then I, it's like, the thrill is gone.           <- abandoned "i" kept
+
+in    degree it's of course it's a whole lot easier
+gold  Degree, of course, it's a whole lot easier.
+mix   Degree, it's a whole lot easier.                     <- drops "of course"
+```
+
+Half of real self-repairs still go unresolved, and these are what that looks
+like.
 
 Only the real-speech row is bolded, because it is the only one where the two
 models are actually separated. **On real speech the intervals do not come close
