@@ -1,4 +1,4 @@
-| System | Set | N | Exact match | WER | WER (words only) | Filler removal F1 | Repair resolution | Repairs scored |
+| System | Set | N | Exact match | WER | WER (words only) | Filler removal F1 | Repair resolution | Sentences with a repair |
 |---|---|---|---|---|---|---|---|---|
 | Copy baseline | held-out synthetic | 10000 | 0.030 [0.027, 0.033] | 0.310 | 0.132 | 0.000 | 0.000 [0.000, 0.000] | 2267 |
 | Mend (synthetic only) | held-out synthetic | 10000 | 0.649 [0.639, 0.658] | 0.058 | 0.012 | 0.995 | 0.848 [0.832, 0.861] | 2267 |

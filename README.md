@@ -2,21 +2,47 @@
 
 [![tests](https://github.com/daltonoscar0/mend/actions/workflows/tests.yml/badge.svg)](https://github.com/daltonoscar0/mend/actions/workflows/tests.yml)
 
-Mend turns spoken dictation into written text. It removes filled pauses, resolves
-self-repairs, and restores casing and punctuation:
+Mend turns spoken dictation into written text: it removes filled pauses, resolves
+self-repairs, and restores casing and punctuation.
 
 ```
 send it to john no wait sarah um by friday
 -> Send it to Sarah by Friday.
 ```
 
-There is no corpus of paired dictation and its cleaned-up form, so Mend builds one:
-a disfluency injector runs clean written sentences backwards into plausible speech,
-keeping a record of exactly what it inserted and where. Those spans are what make
-the rest possible — they give the evaluation something to score against, and they
-give the surprisal analysis a boundary to centre on.
+There is no corpus of paired dictation and its cleaned-up form, so Mend builds
+one. A disfluency injector runs clean written sentences backwards into plausible
+speech, keeping a record of exactly what it inserted and where — and those spans
+are what make the rest possible, because they give the evaluation something to
+score against.
 
-The repo contains:
+## The finding
+
+A model trained only on synthetically injected disfluencies resolves **about a
+third** of real human self-repairs. Adding real speech to the training mix takes
+it to **about a half**.
+
+| | repair resolution on real speech |
+|---|---|
+| copy baseline | 0.000 |
+| trained on synthetic disfluencies only | 0.326 [0.285, 0.366] |
+| **+ 25k real utterances** | **0.503 [0.460, 0.546]** |
+
+Measured on 293 Switchboard conversations neither model was trained on. Those two
+intervals do not overlap, and that is the one comparison in this repo with a
+comfortable margin.
+
+Almost nothing else does. The mixed model also looks better on the synthetic
+split and on the hand-written hard set, and in both cases the intervals overlap —
+so the honest reading is "did not regress", not "improved". Two further claims
+that were in this README have since been withdrawn: a hard-set result that 100
+sentences could not support, and an argument about the generator that did not
+survive being re-run with a larger language model. Both retractions are below,
+with the reasoning left intact.
+
+Half of real self-repairs are still unresolved. That is the honest ceiling.
+
+## What is here
 
 * `mend/injector.py` — the disfluency injector, structured the way Shriberg
   describes self-repair: **reparandum** (the abandoned material), **interregnum**
@@ -26,102 +52,10 @@ The repo contains:
 * two fine-tuned models — flan-t5-small, seq2seq, `clean up: {disfluent}` →
   `{clean}` — one trained on synthetic pairs alone and one with real speech mixed
   in, so the difference between them is measurable rather than asserted.
-* one evaluation table — `outputs/eval_table.md`.
-* the surprisal-at-repair-boundary figures, on synthetic and on real speech.
-
-The short version of the results: synthetic disfluencies alone get you a third of
-real self-repairs, and mixing in real speech gets you half. Both numbers are in
-the table, measured on conversations neither model was trained on.
-
-## Setup
-
-```bash
-uv venv --python 3.12 .venv
-uv pip install -e ".[dev]"
-```
-
-Any environment with the pinned dependencies in `pyproject.toml` works. The scripts
-pick their device automatically: CUDA if present, otherwise Apple MPS, otherwise CPU.
-
-## Using it
-
-Once there is a model at `outputs/model`:
-
-```console
-$ mend-clean "um send the the report to john no wait sarah by friday"
-Send the report to Sarah by Friday.
-
-$ echo "so i was like really tired you know" | mend-clean
-So I was really tired.
-```
-
-It reads stdin when given no arguments, one line in, one line out, so it works in
-a pipe. Input is normalised to the register the model was trained on — lowercased,
-edge punctuation removed — so pasting text that already has capitals and commas
-works; `--raw` skips that. `--show-input` prints both sides.
-
-`outputs/model` points at the model trained with real speech mixed in, which is
-the better of the two on every set. Read the accuracy section before trusting it
-on anything: it removes filled pauses and restores punctuation reliably, and
-resolves about half of real self-repairs.
-
-## Running the stages
-
-```bash
-# 1. tests -- 143 of them, no checkpoint and no corpus download needed
-pytest
-
-# 2. synthetic training data: 50k/2k/10k pairs into data/
-python -m mend.generate_data --smoke                       # 100 pairs, prints a sample
-python -m mend.generate_data --train 50000 --val 2000 --test 10000 --seed 13
-
-# 3. real speech (14 MB, no licence gate). Writes the whole parse for the
-#    surprisal analysis, plus a conversation-disjoint train/val/eval beside it
-curl -L -o swda.zip https://github.com/cgpotts/swda/raw/master/swda.zip
-unzip -q swda.zip -d swda
-python -m mend.swda --root swda --out data/swda_all.jsonl --split
-
-# 4. fine-tune; writes <out>/checkpoints and links <out>/model at the best one
-python -m mend.train --smoke --smoke-steps 150 --batch 32 --real 25000
-#   the two systems in the table: synthetic only, then with real speech mixed in
-python -m mend.train --batch 32 --epochs 2 --eval-steps 400 \
-    --real 0 --out outputs/synthetic_only
-python -m mend.train --batch 32 --epochs 2 --eval-steps 400 \
-    --real 25000 --out outputs/mixed
-#   --real -1 uses every real pair instead of a 25k sample
-#   --resume auto picks up from the latest checkpoint if a run is interrupted
-ln -sfn mixed/checkpoints/checkpoint-4000 outputs/model   # what mend-clean uses
-
-# 5. the evaluation table; --model takes "label=path" and repeats
-python -m mend.evaluate \
-    --model "Mend (synthetic only)=outputs/synthetic_only/model" \
-    --model "Mend (+ real speech)=outputs/mixed/model"
-
-# 6. the surprisal figures
-python -m mend.surprisal --data data/test.jsonl --draws 4000 \
-    --title "Synthetic test split"
-python -m mend.surprisal --data data/swda_all.jsonl --shuffle --limit 20000 \
-    --draws 4000 --tag _swda --title "Real speech (Switchboard)"
-#   the same two at 9x the model size, which is what --lm is for
-python -m mend.surprisal --data data/test.jsonl --draws 4000 \
-    --lm EleutherAI/pythia-1.4b --tag _p14b --title "Synthetic, pythia-1.4b"
-python -m mend.surprisal --data data/swda_all.jsonl --shuffle --limit 20000 \
-    --draws 4000 --lm EleutherAI/pythia-1.4b --tag _swda_p14b \
-    --title "Real speech, pythia-1.4b"
-
-# 7. run the model over your own text
-mend-clean "um send the the report to john no wait sarah by friday"
-```
-
-Every stage is seeded and re-runnable. Do not run the surprisal pass next to
-training on a 16 GB machine; together they exhaust memory and both crawl.
-
-The test suite builds its own data and stubs the language model, so it runs on a
-fresh clone in about five seconds and needs no GPU — which is what lets CI run
-it on every push. It covers the injector, the SwDA parser and split, the
-training mix, the scoring functions and the surprisal windowing. `train.py`'s
-loop and `generate_data.py`'s WikiText reader are not covered; both are thin
-wrappers over other people's libraries and neither produces a reported number.
+* one evaluation table, `outputs/eval_table.md`, and the
+  surprisal-at-repair-boundary figures.
+* `DECISIONS.md` — one line per engineering decision, including the ones that
+  turned out to be wrong.
 
 ## Real speech
 
@@ -144,9 +78,16 @@ imitates:
 `mend/swda.py` parses that into the same `InjectionResult` schema the injector
 produces, so `evaluate.py` and `surprisal.py` read it with no changes. It yields
 **81,107 utterances carrying 13,038 repairs, 15,622 repetitions and 35,412 filled
-pauses**. Only complete slash units with balanced markup are kept, and utterances
-containing a cut-off word ("d-") are dropped since nothing in training resembles
-them.
+pauses**. Only complete slash units with balanced markup are kept, and a slash
+unit that breaks off mid-word is dropped.
+
+Cut-off words *inside* an utterance are not. An earlier version of this file
+claimed they were filtered out, and they never were: `spoken_form` strips the
+trailing hyphen while building the tokens, so by the time the filter ran there
+was nothing left to match and it fired on 0 of the 81,107 utterances. "ma-"
+enters the corpus as "ma", indistinguishable from a word the speaker meant. The
+dead branch has been removed and this paragraph corrected rather than the corpus
+rebuilt, since the shipped models were trained on it.
 
 ### The split, and what it costs
 
@@ -282,7 +223,9 @@ that it improved, and the hard set at 100 sentences cannot separate 0.550 from
 > not firmly established. Nothing about the model changed; the measurement did.
 > Both systems above are scored on the identical sample, so
 > **0.326 → 0.503 is the like-for-like comparison**, and the evaluation sample was
-> doubled to 4000 utterances so the headline number rests on 519 repairs.
+> doubled to 4000 utterances so the headline number rests on 519 sentences
+> carrying 637 repairs. (The metric is per sentence: a sentence with two repairs
+> scores only if both came out right.)
 
 Exact match normalises whitespace and treats the sentence-final mark as optional,
 but is otherwise case-sensitive. WER is over whitespace tokens with punctuation
@@ -371,8 +314,9 @@ signal was always thin: the synthetic repair effect was +3.84 at −1 against
 had to pick one.
 
 The criticism of the injector still stands on its own terms — its reparandum
-*is* a random category substitution, which is a fact about the code rather than
-something this analysis discovered. What is gone is the evidence that the
+usually *is* a random category substitution — 88% of injected repairs are, and
+69% carry one of four stock editing phrases — which is a fact about the code
+rather than something this analysis discovered. What is gone is the evidence that the
 surprisal figure demonstrated it.
 
 Two further caveats. The reported effects are paired against each type's own
@@ -382,20 +326,21 @@ on both sides are analysed.
 
 ## Honest summary
 
-**Synthetic repairs do not teach a model to resolve real ones. Real repairs do,
-and the synthetic data was not what was holding it back.**
-
-The synthetic-only model resolves 84.8% of injected repairs and 32.6% of real
-ones — a model that has only ever seen the injector's output handles about a
-third of what a human actually does when they correct themselves. Injected
-repairs are category substitutions with a stock editing phrase; real self-repairs
-are none of those things. Anyone reading the 0.848 as evidence of a dictation
+The single most misleading number in this repo is **0.848** — the synthetic-only
+model's repair resolution on held-out synthetic data. The same model scores
+**0.326** on real speech. Anyone reading the first as evidence of a dictation
 cleanup system would be wrong by roughly a factor of three.
 
-Adding 25k real utterances to the training mix takes real-speech repair
-resolution to **0.503 [0.460, 0.546]**, cuts words-only WER from 0.056 to
-**0.026**, and lifts filler removal from 0.859 to **0.955**. That is the one
-result here with a comfortable margin — the two intervals are far apart.
+That gap is the whole point. Injected repairs are mostly category substitutions
+(88%), two thirds of them announced by one of four stock editing phrases; real
+self-repairs are far less uniform. Whether a differently shaped generator could
+have closed more of the gap was never tested — the injector was widened once and
+the pre-widening model was never scored on real speech.
+
+Adding 25k real utterances takes real-speech repair resolution to
+**0.503 [0.460, 0.546]**, cuts words-only WER from 0.056 to **0.026**, and lifts
+filler removal from 0.859 to **0.955**. Those intervals are far apart; this is
+the one comparison here with a comfortable margin.
 
 What it does *not* do is improve anything else measurably. On the synthetic split
 the intervals overlap in both directions (exact match 0.649 → 0.646, repair
@@ -433,9 +378,11 @@ corpus that draws the removable/keepable line somewhere else.
   on real speech rose to 0.955, but hard-set *filler-as-content* fell 8/14 → 7/14.
   The model is better calibrated on conversational fillers and slightly worse on
   the adversarial dictation cases.
-* **Fragments are still unhandled.** *it sure does ma make a difference* keeps the
-  cut-off *ma*, because utterances containing cut-off words are dropped from the
-  SwDA parse — nothing in training resembles them.
+* **Fragments are still unhandled**, and not for the reason this README used to
+  give. *it sure does ma make a difference* keeps the cut-off *ma*. Training does
+  contain such utterances — the filter meant to remove them never fired — but the
+  hyphen is stripped on the way in, so *ma-* arrives as *ma* with nothing marking
+  it as a fragment, and the model has no signal to learn from.
 * **Discourse-marker disagreement is now mostly resolved** in Switchboard's
   favour, which is a convention the model has been taught rather than a judgement
   it makes.
@@ -456,19 +403,22 @@ Exact match on each of the eight adversarial categories, both models:
 | Nested repair | 2/12 | **4/12** |
 | **total** | **55/100** | **61/100** |
 
-Six of eight categories improve or hold, and the one that regresses is
+Seven of eight categories improve or hold — five improve, two hold — and the
+one that regresses is
 filler-as-content — the model traded a little of its dictation-register
 calibration for a lot of conversational-filler accuracy. **With 8–16 examples per
 phenomenon these per-row differences are not statistically meaningful** — read
-them as directions, not measurements. Nested repair at 4/12 remains the worst
-category by some distance, and neither training mix has touched false starts.
+them as directions, not measurements. Nested repair doubled to 4/12, which
+leaves it and false start (flat at 2/8) as the two weakest categories; neither
+training mix has touched false starts at all.
 
 An earlier round widened the injector itself — three-token repairs that overlap
 their reparandum, corrections that arrive a clause late, mid-sentence false
 starts, literal filler words in a third of targets. That moved hard-set exact
 match 0.530 → 0.550, trading multi-repair and nested repair for overlapping and
-cross-clause. Widening the generator rearranged the failures; real data was what
-actually moved the total.
+cross-clause. The hard set cannot separate either move at n=100 — widening the
+generator visibly rearranged the failures, and the gain that is firmly measured
+anywhere is on real speech.
 
 ### On the status of the hard set
 
@@ -478,7 +428,9 @@ a held-out measurement, for the filler-as-content and repair-shape categories. I
 numbers are optimistic to an unknown degree.
 
 The 293 held-out SwDA conversations are the honest benchmark. They were never
-trained on, and the split was drawn before either model in the table existed. The
+trained on, and the split is a seeded shuffle over whole conversations drawn
+before the mixed model was trained; the synthetic-only model predates the split
+entirely and had never seen SwDA at all. The
 corpus as a whole no longer has the stronger property it had in the previous
 round — that nothing in the repo had ever been fitted to any part of it.
 
@@ -490,8 +442,8 @@ has been taught where *that* corpus draws the removable line. There is still no
 real ASR output anywhere in the pipeline — the disfluent side is always a
 transcript, never a recognition hypothesis, so it carries none of the substitution
 errors a real recogniser makes. The injector's repairs are still drawn from closed
-word categories. Utterances containing cut-off words are dropped from the SwDA
-parse, so fragments are unhandled by construction. The surprisal analysis rests
+word categories. Cut-off words reach training with their hyphen stripped, so
+nothing distinguishes a fragment from a real word and fragments are unhandled. The surprisal analysis rests
 on 548 real repairs and its real-speech peaks hold at nine times the model size,
 but the synthetic peaks do not, so any claim resting on where a synthetic peak
 falls should be treated as a property of the language model until it has been
@@ -505,9 +457,11 @@ cross a clause boundary, repairs whose reparandum and repair share words, words
 like *like* and *sorry* used literally rather than as fillers, number and date
 repairs, and sentences carrying several repairs at once.
 
-It has since been reviewed. Every gold was checked to be reachable from its input
-by deletion plus casing and punctuation — no example asks the model to invent a
-word the speaker never said — and there are no duplicate inputs or golds. One
+It has since been reviewed. Every gold was checked to introduce no word absent
+from its input, apostrophes aside — no example asks the model to invent a word
+the speaker never said — and there are no duplicate inputs or golds. The twelve
+cross-clause rows are not reachable by deletion alone, though: the corrected
+phrase has to move back to where the abandoned one stood. One
 inconsistency was found and fixed: *the flight leaves at 6 45 no wait 7 45* asked
 for `7:45`, while every other number row copies its digits verbatim (`555 0128`
 keeps its space, *at 3 no at 4* stays a bare `4`). The set's convention is that
@@ -518,6 +472,97 @@ turns on orthography rather than disfluency — *like-minded*, *north-east*,
 *double-sided*, and the apostrophe in *Let's* — which is legitimate written
 English but is not what the set was built to probe. And it remains a development
 set for the categories the injector was tuned against.
+
+## Setup
+
+```bash
+uv venv --python 3.12 .venv
+uv pip install -e ".[dev]"
+```
+
+Any environment with the pinned dependencies in `pyproject.toml` works. The scripts
+pick their device automatically: CUDA if present, otherwise Apple MPS, otherwise CPU.
+
+## Using it
+
+Once there is a model at `outputs/model`:
+
+```console
+$ mend-clean "um send the the report to john no wait sarah by friday"
+Send the report to Sarah by Friday.
+
+$ echo "so i was like really tired you know" | mend-clean
+So I was really tired.
+```
+
+It reads stdin when given no arguments, one line in, one line out, so it works in
+a pipe. Input is normalised to the register the model was trained on — lowercased,
+edge punctuation removed — so pasting text that already has capitals and commas
+works; `--raw` skips that. `--show-input` prints both sides.
+
+`outputs/model` points at the model trained with real speech mixed in: clearly
+better on real speech, and no worse on the synthetic and hard sets. Read the
+accuracy section before trusting it on anything — it removes filled pauses and
+restores punctuation reliably, and resolves about half of real self-repairs.
+
+## Running the stages
+
+```bash
+# 1. tests: no checkpoint and no corpus download needed
+pytest
+
+# 2. synthetic training data: 50k/2k/10k pairs into data/
+python -m mend.generate_data --smoke                       # 100 pairs, prints a sample
+python -m mend.generate_data --train 50000 --val 2000 --test 10000 --seed 13
+
+# 3. real speech (14 MB, no licence gate). Writes the whole parse for the
+#    surprisal analysis, plus a conversation-disjoint train/val/eval beside it
+curl -L -o swda.zip https://github.com/cgpotts/swda/raw/master/swda.zip
+unzip -q swda.zip -d swda
+python -m mend.swda --root swda --out data/swda_all.jsonl --split
+
+# 4. fine-tune; writes <out>/checkpoints and links <out>/model at the best one
+python -m mend.train --smoke --smoke-steps 150 --batch 32 --real 25000
+#   the two systems in the table: synthetic only, then with real speech mixed in
+python -m mend.train --batch 32 --epochs 2 --eval-steps 400 \
+    --real 0 --out outputs/synthetic_only
+python -m mend.train --batch 32 --epochs 2 --eval-steps 400 \
+    --real 25000 --out outputs/mixed
+#   --real -1 uses every real pair instead of a 25k sample
+#   --resume auto picks up from the latest checkpoint if a run is interrupted
+ln -sfn mixed/model outputs/model   # what mend-clean uses; train.py already
+#                                    keeps <out>/model on the best checkpoint
+
+# 5. the evaluation table; --model takes "label=path" and repeats
+python -m mend.evaluate --bootstrap 2000 \
+    --model "Mend (synthetic only)=outputs/synthetic_only/model" \
+    --model "Mend (+ real speech)=outputs/mixed/model"
+
+# 6. the surprisal figures
+python -m mend.surprisal --data data/test.jsonl --draws 4000 \
+    --title "Synthetic test split"
+python -m mend.surprisal --data data/swda_all.jsonl --shuffle --limit 20000 \
+    --draws 4000 --tag _swda --title "Real speech (Switchboard)"
+#   the same two at 9x the model size, which is what --lm is for
+python -m mend.surprisal --data data/test.jsonl --draws 4000 \
+    --lm EleutherAI/pythia-1.4b --tag _p14b --title "Synthetic, pythia-1.4b"
+python -m mend.surprisal --data data/swda_all.jsonl --shuffle --limit 20000 \
+    --draws 4000 --lm EleutherAI/pythia-1.4b --tag _swda_p14b \
+    --title "Real speech, pythia-1.4b"
+
+# 7. run the model over your own text
+mend-clean "um send the the report to john no wait sarah by friday"
+```
+
+Every stage is seeded and re-runnable. Do not run the surprisal pass next to
+training on a 16 GB machine; together they exhaust memory and both crawl.
+
+The test suite builds its own data and stubs the language model, so it runs on a
+fresh clone in seconds and needs no GPU — which is what lets CI run it on every
+push. It covers the injector, the SwDA parser and split, the
+training mix, the scoring functions and the surprisal windowing. `train.py`'s
+loop and `generate_data.py`'s WikiText reader are not covered; both are thin
+wrappers over other people's libraries and neither produces a reported number.
 
 ## Layout
 
