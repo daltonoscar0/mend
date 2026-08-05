@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # The CPU wheel is a few hundred megabytes against a couple of gigabytes
+      # for the default CUDA build, and nothing in the test suite touches a GPU.
+      - name: Install torch (CPU build)
+        run: pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.9.*"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      # No checkpoint and no corpus download: the suite covers the injector, the
+      # SwDA parser, the training data mix and the scoring functions, all of
+      # which run on data built in the tests themselves.
+      - name: Run tests
+        run: pytest -q
