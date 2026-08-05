@@ -58,7 +58,7 @@
 {"disfluent": "the deadline is june 1 no july 1", "clean": "The deadline is July 1.", "phenomenon": "number_date_repair"}
 {"disfluent": "she turns 30 no 31 next week", "clean": "She turns 31 next week.", "phenomenon": "number_date_repair"}
 {"disfluent": "invoice number 4471 sorry 4417", "clean": "Invoice number 4417.", "phenomenon": "number_date_repair"}
-{"disfluent": "the flight leaves at 6 45 no wait 7 45", "clean": "The flight leaves at 7:45.", "phenomenon": "number_date_repair"}
+{"disfluent": "the flight leaves at 6 45 no wait 7 45", "clean": "The flight leaves at 7 45.", "phenomenon": "number_date_repair"}
 {"disfluent": "book it for the 21st no the 22nd of october", "clean": "Book it for the 22nd of October.", "phenomenon": "number_date_repair"}
 {"disfluent": "there were fifty no fifteen people there", "clean": "There were fifteen people there.", "phenomenon": "number_date_repair"}
 {"disfluent": "the quarter closes in q2 no q3", "clean": "The quarter closes in Q3.", "phenomenon": "number_date_repair"}
