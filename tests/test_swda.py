@@ -2,7 +2,7 @@
 
 import pytest
 
-from mend.swda import parse_utterance, tidy_clean
+from mend.swda import parse_utterance, split_by_conversation, tidy_clean
 
 
 def parse(text):
@@ -179,3 +179,63 @@ def test_tidy_clean_capitalises_and_closes_the_sentence():
     assert tidy_clean([",", "we", "went", "home"]) == ["We", "went", "home."]
     assert tidy_clean(["We", "went", "home?"]) == ["We", "went", "home?"]
     assert tidy_clean([]) == []
+
+
+# --------------------------------------------------------------------------
+# the conversation-disjoint split
+# --------------------------------------------------------------------------
+
+
+def _rows(n_conversations=20, per_conversation=10):
+    return [
+        {
+            "disfluent": f"utterance {c} {i}",
+            "clean": f"Utterance {c} {i}.",
+            "annotations": [{"type": "repair"}] if i % 5 == 0 else [],
+            "conversation": str(c),
+        }
+        for c in range(n_conversations)
+        for i in range(per_conversation)
+    ]
+
+
+def test_split_keeps_conversations_whole():
+    """No conversation may appear in two splits, or the held-out set leaks."""
+    splits = split_by_conversation(_rows(), seed=13)
+    seen = {}
+    for name, rows in splits.items():
+        for row in rows:
+            other = seen.setdefault(row["conversation"], name)
+            assert other == name, (
+                f"conversation {row['conversation']} is in both {other} and {name}"
+            )
+
+
+def test_split_loses_no_utterances():
+    rows = _rows()
+    splits = split_by_conversation(rows, seed=13)
+    assert sum(len(v) for v in splits.values()) == len(rows)
+
+
+def test_split_is_deterministic_for_a_seed():
+    a = split_by_conversation(_rows(), seed=7)
+    b = split_by_conversation(_rows(), seed=7)
+    c = split_by_conversation(_rows(), seed=8)
+    assert [r["disfluent"] for r in a["eval"]] == [r["disfluent"] for r in b["eval"]]
+    assert [r["disfluent"] for r in a["eval"]] != [r["disfluent"] for r in c["eval"]]
+
+
+def test_split_respects_the_requested_fractions():
+    rows = _rows(n_conversations=100, per_conversation=10)
+    splits = split_by_conversation(rows, seed=13, val_fraction=0.1, eval_fraction=0.3)
+    # whole conversations only, so allow one conversation of slack either way
+    assert 0.3 <= len(splits["eval"]) / len(rows) <= 0.32
+    assert 0.1 <= len(splits["val"]) / len(rows) <= 0.12
+
+
+def test_every_split_carries_repairs():
+    """A held-out set with no repairs in it cannot measure repair resolution."""
+    splits = split_by_conversation(_rows(), seed=13)
+    for name, rows in splits.items():
+        repairs = sum(1 for r in rows for a in r["annotations"] if a["type"] == "repair")
+        assert repairs > 0, f"{name} has no repairs to score"

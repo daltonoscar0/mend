@@ -15,8 +15,13 @@ which is the same structure the injector imitates:
     {C and }                                    coordinating conjunction
 
 so a parse gives (disfluent, clean) pairs with reparandum / interregnum /
-repair spans in exactly the schema :mod:`mend.injector` produces. No model or
-data-generation choice in this repo was made by looking at it.
+repair spans in exactly the schema :mod:`mend.injector` produces.
+
+The corpus feeds training as well as evaluation, because synthetic repairs alone
+turned out not to teach a model to resolve real ones. It is therefore split by
+conversation: the evaluation conversations are never trained on, but the corpus
+as a whole no longer has the stronger property it had when it was first added,
+that nothing in the repo had ever been fitted to any part of it.
 
 Get the corpus (14 MB, no licence gate)::
 
@@ -25,7 +30,10 @@ Get the corpus (14 MB, no licence gate)::
 
 Then::
 
-    python -m mend.swda --root swda --out data/swda_eval.jsonl
+    python -m mend.swda --root swda --out data/swda_all.jsonl --split
+
+which writes the whole parse to ``--out`` for the surprisal analysis, and a
+conversation-disjoint ``swda_train`` / ``swda_val`` / ``swda_eval`` beside it.
 """
 
 from __future__ import annotations
@@ -34,6 +42,7 @@ import argparse
 import csv
 import glob
 import json
+import random
 import re
 import sys
 from collections import Counter
@@ -299,28 +308,131 @@ def load_utterances(
     return rows
 
 
+def split_by_conversation(
+    rows: Sequence[dict],
+    seed: int = 13,
+    val_fraction: float = 0.05,
+    eval_fraction: float = 0.25,
+) -> Dict[str, List[dict]]:
+    """Divide the utterances into train/val/eval along conversation lines.
+
+    Splitting by utterance would leak: the two speakers in a Switchboard call
+    talk about one assigned topic for ten minutes, so utterances from the same
+    conversation share vocabulary, subject matter and speaker habits. A model
+    trained on half a conversation and tested on the other half is being asked
+    an easier question than the one we mean to ask.
+
+    Whole conversations therefore go to exactly one split. Conversations vary
+    in length (10 to 181 utterances), so the fractions are filled by utterance
+    count rather than by conversation count, and land within a conversation's
+    length of the target.
+    """
+    by_conversation: Dict[str, List[dict]] = {}
+    for row in rows:
+        by_conversation.setdefault(str(row.get("conversation")), []).append(row)
+
+    ids = sorted(by_conversation)
+    random.Random(seed).shuffle(ids)
+
+    total = len(rows)
+    want = {"eval": int(total * eval_fraction), "val": int(total * val_fraction)}
+    out: Dict[str, List[dict]] = {"train": [], "val": [], "eval": []}
+    conversations: Dict[str, int] = {"train": 0, "val": 0, "eval": 0}
+
+    # Fill the two held-out splits first, then everything else is training.
+    for name in ("eval", "val"):
+        for cid in list(ids):
+            if len(out[name]) >= want[name]:
+                break
+            out[name].extend(by_conversation[cid])
+            conversations[name] += 1
+            ids.remove(cid)
+    for cid in ids:
+        out["train"].extend(by_conversation[cid])
+        conversations["train"] += 1
+
+    for name, split in out.items():
+        repairs = sum(
+            1 for r in split for a in r["annotations"] if a["type"] == "repair"
+        )
+        print(
+            f"  {name}: {len(split)} utterances from {conversations[name]} "
+            f"conversations, {repairs} repairs",
+            file=sys.stderr,
+        )
+    return out
+
+
+def _write(path: Path, rows: Sequence[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def _read(path: Path) -> List[dict]:
+    with Path(path).open(encoding="utf-8") as fh:
+        return [json.loads(line) for line in fh if line.strip()]
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="Build a real-speech evaluation set from SwDA")
-    ap.add_argument("--root", type=Path, required=True, help="unzipped swda directory")
-    ap.add_argument("--out", type=Path, default=Path("data/swda_eval.jsonl"))
+    ap = argparse.ArgumentParser(description="Build real-speech sets from SwDA")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--root", type=Path, help="unzipped swda directory")
+    src.add_argument(
+        "--from-jsonl",
+        dest="from_jsonl",
+        type=Path,
+        help="re-split an earlier parse instead of reading the corpus again",
+    )
+    ap.add_argument("--out", type=Path, default=Path("data/swda_all.jsonl"))
+    ap.add_argument(
+        "--split",
+        action="store_true",
+        help="write conversation-disjoint train/val/eval sets next to --out",
+    )
+    ap.add_argument("--seed", type=int, default=13)
+    ap.add_argument("--val-fraction", dest="val_fraction", type=float, default=0.05)
+    ap.add_argument("--eval-fraction", dest="eval_fraction", type=float, default=0.25)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--keep-fragments", dest="keep_fragments", action="store_true")
     args = ap.parse_args(argv)
 
-    rows = load_utterances(args.root, keep_fragments=args.keep_fragments)
+    if args.from_jsonl:
+        rows = _read(args.from_jsonl)
+        print(f"read {len(rows)} utterances from {args.from_jsonl}", file=sys.stderr)
+    else:
+        rows = load_utterances(args.root, keep_fragments=args.keep_fragments)
     if args.limit:
         rows = rows[: args.limit]
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    with args.out.open("w", encoding="utf-8") as fh:
-        for row in rows:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    types: Counter = Counter()
-    for row in rows:
-        for ann in row["annotations"]:
-            types[ann["type"]] += 1
-    print(f"wrote {len(rows)} utterances to {args.out}")
-    print("annotations: " + "  ".join(f"{k}={v}" for k, v in sorted(types.items())))
+    def report(name: str, split: Sequence[dict], path: Path) -> None:
+        types: Counter = Counter()
+        for row in split:
+            for ann in row["annotations"]:
+                types[ann["type"]] += 1
+        print(f"wrote {len(split)} utterances to {path}")
+        print("  annotations: " + "  ".join(f"{k}={v}" for k, v in sorted(types.items())))
+
+    # The full parse is always written. The surprisal analysis reads it rather
+    # than the held-out split: it measures a property of human speech with a
+    # separate language model, so no split of ours is relevant to it, and it
+    # wants every repair it can get.
+    reading_from_out = args.from_jsonl and args.from_jsonl.resolve() == args.out.resolve()
+    if not reading_from_out:
+        _write(args.out, rows)
+        report("all", rows, args.out)
+    if not args.split:
+        return 0
+
+    splits = split_by_conversation(
+        rows, args.seed, args.val_fraction, args.eval_fraction
+    )
+    stem = args.out.parent
+    for name in ("train", "val", "eval"):
+        path = stem / f"swda_{name}.jsonl"
+        _write(path, splits[name])
+        report(name, splits[name], path)
     return 0
 
 
