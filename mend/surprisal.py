@@ -268,6 +268,41 @@ def paired_difference_ci(
     return bootstrap_ci(diff, n_draws, seed)
 
 
+def summarise_effects(
+    per_type: Dict[str, np.ndarray],
+    per_control: Dict[str, np.ndarray],
+    n_draws: int = 2000,
+    seed: int = 13,
+) -> Dict[str, dict]:
+    """Effect size per disfluency type, and where along the window it peaks.
+
+    The peak is the largest gap between a disfluency profile and its own fluent
+    control, differenced instance by instance, reported wherever it falls and in
+    whichever direction it turns out to go. The boundary figure is reported
+    alongside it because the peak landing somewhere other than 0 is itself a
+    finding -- on synthetic data the repair peak sits one position early, on the
+    reparandum, which says more about the generator than about speech.
+    """
+    report: Dict[str, dict] = {}
+    for name in TYPES:
+        if name not in per_type:
+            continue
+        data, ctrl = per_type[name], per_control[name]
+        mean_diff, lo, hi = paired_difference_ci(data, ctrl, n_draws, seed)
+        peak = int(np.argmax(np.abs(mean_diff)))
+        report[name] = {
+            "n": int(data.shape[0]),
+            "peak_position": peak - WINDOW,
+            "peak_effect_bits": float(mean_diff[peak]),
+            "peak_effect_ci95": [float(lo[peak]), float(hi[peak])],
+            "surprisal_at_peak_bits": float(data.mean(axis=0)[peak]),
+            "control_at_peak_bits": float(ctrl.mean(axis=0)[peak]),
+            "effect_at_boundary_bits": float(mean_diff[WINDOW]),
+            "effect_at_boundary_ci95": [float(lo[WINDOW]), float(hi[WINDOW])],
+        }
+    return report
+
+
 # --------------------------------------------------------------------------
 # figure
 # --------------------------------------------------------------------------
@@ -398,34 +433,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         per_type, per_control, args.out, args.draws, args.tag, args.title
     )
 
-    # Effect size: the largest gap between a disfluency profile and its own
-    # fluent control, differenced instance by instance and reported wherever
-    # the peak falls, whichever direction that turns out to be.
-    report: Dict[str, dict] = {}
+    report = summarise_effects(per_type, per_control, args.draws, args.seed)
     lines = []
-    for name in TYPES:
-        if name not in per_type:
-            continue
-        data, ctrl = per_type[name], per_control[name]
-        mean_diff, lo, hi = paired_difference_ci(data, ctrl, args.draws)
-        peak = int(np.argmax(np.abs(mean_diff)))
-        rel = peak - WINDOW
-        report[name] = {
-            "n": int(data.shape[0]),
-            "peak_position": rel,
-            "peak_effect_bits": float(mean_diff[peak]),
-            "peak_effect_ci95": [float(lo[peak]), float(hi[peak])],
-            "surprisal_at_peak_bits": float(data.mean(axis=0)[peak]),
-            "control_at_peak_bits": float(ctrl.mean(axis=0)[peak]),
-            "effect_at_boundary_bits": float(mean_diff[WINDOW]),
-            "effect_at_boundary_ci95": [float(lo[WINDOW]), float(hi[WINDOW])],
-        }
+    for name, entry in report.items():
+        peak_lo, peak_hi = entry["peak_effect_ci95"]
+        edge_lo, edge_hi = entry["effect_at_boundary_ci95"]
         lines.append(
-            f"{LABELS[name]:<13s} n={data.shape[0]:<5d} peak {mend_sign(mean_diff[peak])} "
-            f"bits at position {rel:+d} "
-            f"[95% CI {lo[peak]:+.2f}, {hi[peak]:+.2f}]; at the boundary itself "
-            f"{mend_sign(mean_diff[WINDOW])} bits "
-            f"[95% CI {lo[WINDOW]:+.2f}, {hi[WINDOW]:+.2f}]"
+            f"{LABELS[name]:<13s} n={entry['n']:<5d} "
+            f"peak {mend_sign(entry['peak_effect_bits'])} bits at position "
+            f"{entry['peak_position']:+d} [95% CI {peak_lo:+.2f}, {peak_hi:+.2f}]; "
+            f"at the boundary itself {mend_sign(entry['effect_at_boundary_bits'])} "
+            f"bits [95% CI {edge_lo:+.2f}, {edge_hi:+.2f}]"
         )
 
     print("\nSurprisal relative to the matched fluent control:")
