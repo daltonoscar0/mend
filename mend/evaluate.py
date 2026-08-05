@@ -313,34 +313,138 @@ def repair_resolved(row: dict, hyp: str) -> Optional[bool]:
 # --------------------------------------------------------------------------
 
 
-def score(rows: Sequence[dict], hyps: Sequence[str]) -> Dict[str, float]:
+#: per-row counts, in the order ``aggregate`` expects them
+STAT_FIELDS = (
+    "em",           # exact match, 0 or 1
+    "wer_edits",    # substitutions + deletions + insertions
+    "wer_ref",      # reference length, the WER denominator
+    "spk_edits",    # the same two, punctuation-blind
+    "spk_ref",
+    "filler_tp",
+    "filler_fp",
+    "filler_fn",
+    "repair_ok",
+    "repair_seen",
+)
+
+
+def _edit_counts(hyp: str, gold: str) -> Tuple[int, int]:
+    """Edits and reference length for one pair.
+
+    Corpus WER is total edits over total reference words, not the mean of
+    per-sentence rates, so the two counts have to be kept apart until the end.
+    Keeping them per row is what lets the bootstrap resample sentences.
+    """
+    import jiwer
+
+    out = jiwer.process_words([gold or "@"], [hyp if hyp.strip() else "@"])
+    edits = out.substitutions + out.deletions + out.insertions
+    return edits, out.hits + out.substitutions + out.deletions
+
+
+def per_row_stats(rows: Sequence[dict], hyps: Sequence[str]) -> "np.ndarray":
+    """Sufficient statistics for every metric, one row per sentence.
+
+    Every metric in the table is a ratio of sums over sentences, so computing
+    the parts once lets both the point estimate and the bootstrap be built by
+    summing rows -- and guarantees the interval describes the same quantity the
+    point estimate does.
+    """
+    import numpy as np
+
     assert len(rows) == len(hyps)
-    golds = [r["clean"] for r in rows]
-    em = sum(exact_match(h, g) for h, g in zip(hyps, golds)) / max(1, len(rows))
-    wer = word_error_rate(hyps, golds)
-    wer_spoken = word_error_rate_spoken(hyps, golds)
-
-    filler = PRF()
-    repairs_seen = 0
-    repairs_ok = 0
-    for row, hyp in zip(rows, hyps):
-        filler.add(filler_removal_counts(row, hyp))
+    out = np.zeros((len(rows), len(STAT_FIELDS)), dtype=np.int64)
+    for i, (row, hyp) in enumerate(zip(rows, hyps)):
+        gold = row["clean"]
+        prf = filler_removal_counts(row, hyp)
         verdict = repair_resolved(row, hyp)
-        if verdict is not None:
-            repairs_seen += 1
-            repairs_ok += int(verdict)
+        wer_edits, wer_ref = _edit_counts(normalize_ws(hyp), normalize_ws(gold))
+        spk_edits, spk_ref = _edit_counts(
+            " ".join(word_tokens(hyp)), " ".join(word_tokens(gold))
+        )
+        out[i] = (
+            int(exact_match(hyp, gold)),
+            wer_edits, wer_ref,
+            spk_edits, spk_ref,
+            prf.tp, prf.fp, prf.fn,
+            int(bool(verdict)) if verdict is not None else 0,
+            int(verdict is not None),
+        )
+    return out
 
+
+def aggregate(stats: "np.ndarray") -> Dict[str, float]:
+    """Turn summed per-row counts into the reported metrics."""
+    n = len(stats)
+    total = stats.sum(axis=0)
+    c = dict(zip(STAT_FIELDS, total.tolist()))
+
+    def ratio(num, den, empty=float("nan")):
+        return num / den if den else empty
+
+    precision = ratio(c["filler_tp"], c["filler_tp"] + c["filler_fp"], 0.0)
+    recall = ratio(c["filler_tp"], c["filler_tp"] + c["filler_fn"], 0.0)
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     return {
-        "exact_match": em,
-        "wer": wer,
-        "wer_spoken": wer_spoken,
-        "filler_f1": filler.f1,
-        "filler_precision": filler.precision,
-        "filler_recall": filler.recall,
-        "repair_accuracy": repairs_ok / repairs_seen if repairs_seen else float("nan"),
-        "n": len(rows),
-        "n_repairs": repairs_seen,
+        "exact_match": ratio(c["em"], n, 0.0),
+        "wer": ratio(c["wer_edits"], c["wer_ref"], 0.0),
+        "wer_spoken": ratio(c["spk_edits"], c["spk_ref"], 0.0),
+        "filler_f1": f1,
+        "filler_precision": precision,
+        "filler_recall": recall,
+        "repair_accuracy": ratio(c["repair_ok"], c["repair_seen"]),
+        "n": n,
+        "n_repairs": c["repair_seen"],
     }
+
+
+#: metrics the bootstrap reports an interval for
+CI_METRICS = ("exact_match", "wer", "wer_spoken", "filler_f1", "repair_accuracy")
+
+
+def bootstrap_ci(
+    stats: "np.ndarray", draws: int = 2000, seed: int = 13, alpha: float = 0.05
+) -> Dict[str, Tuple[float, float]]:
+    """Percentile bootstrap over sentences.
+
+    Sentences are the unit of resampling, not repairs or filler occurrences: a
+    sentence is what was independently drawn from the corpus, and the several
+    disfluencies inside one sentence are not independent of each other.
+    """
+    import numpy as np
+
+    n = len(stats)
+    if n == 0 or draws <= 0:
+        return {}
+    rng = np.random.default_rng(seed)
+    samples: Dict[str, List[float]] = {m: [] for m in CI_METRICS}
+    for _ in range(draws):
+        drawn = stats[rng.integers(0, n, size=n)]
+        point = aggregate(drawn)
+        for metric in CI_METRICS:
+            samples[metric].append(point[metric])
+    out = {}
+    for metric, values in samples.items():
+        arr = np.asarray(values, dtype=float)
+        arr = arr[~np.isnan(arr)]
+        if arr.size == 0:
+            continue
+        lo, hi = np.quantile(arr, [alpha / 2, 1 - alpha / 2])
+        out[metric] = (float(lo), float(hi))
+    return out
+
+
+def score(
+    rows: Sequence[dict], hyps: Sequence[str], draws: int = 0, seed: int = 13
+) -> Dict[str, float]:
+    """Score one system on one set, optionally with bootstrap intervals."""
+    stats = per_row_stats(rows, hyps)
+    result = aggregate(stats)
+    if draws:
+        for metric, (lo, hi) in bootstrap_ci(stats, draws, seed).items():
+            result[f"{metric}_lo"] = lo
+            result[f"{metric}_hi"] = hi
+    return result
 
 
 # --------------------------------------------------------------------------
@@ -425,12 +529,20 @@ COLUMNS = [
 ]
 
 
-def _fmt(key: str, value) -> str:
+#: columns that carry a claim, so the table shows their interval inline
+CI_COLUMNS = ("exact_match", "repair_accuracy")
+
+
+def _fmt(key: str, value, row: Optional[dict] = None) -> str:
     if key in ("system", "dataset"):
         return str(value)
     if key in ("n", "n_repairs"):
         return str(int(value))
-    return f"{value:.3f}"
+    text = f"{value:.3f}"
+    if row and key in CI_COLUMNS and f"{key}_lo" in row:
+        lo, hi = row[f"{key}_lo"], row[f"{key}_hi"]
+        text += f" [{lo:.3f}, {hi:.3f}]"
+    return text
 
 
 def write_table(results: List[dict], out_dir: Path) -> Tuple[Path, Path]:
@@ -443,8 +555,19 @@ def write_table(results: List[dict], out_dir: Path) -> Tuple[Path, Path]:
         "|" + "|".join("---" for _ in header) + "|",
     ]
     for row in results:
-        lines.append("| " + " | ".join(_fmt(k, row[k]) for k, _ in COLUMNS) + " |")
+        lines.append("| " + " | ".join(_fmt(k, row[k], row) for k, _ in COLUMNS) + " |")
     lines.append("")
+    if any(f"{c}_lo" in r for r in results for c in CI_COLUMNS):
+        lines.append(
+            "Bracketed ranges are 95% percentile bootstrap intervals, resampling "
+            "**sentences** with replacement. A sentence is the unit that was "
+            "independently drawn from the corpus; the several disfluencies inside "
+            "one sentence are not independent of each other, so resampling repairs "
+            "would give intervals that are too narrow. Read the hard-set rows with "
+            "this in mind -- 100 sentences cannot separate two systems a few points "
+            "apart."
+        )
+        lines.append("")
     lines.append(
         "Exact match ignores whitespace differences and treats the sentence-final "
         "mark as optional. WER is computed over whitespace tokens with punctuation "
@@ -457,12 +580,17 @@ def write_table(results: List[dict], out_dir: Path) -> Tuple[Path, Path]:
     )
     md_path.write_text("\n".join(lines) + "\n")
 
+    extra = ["filler_precision", "filler_recall"]
+    # the CSV carries an interval for every bootstrapped metric, not just the
+    # two the markdown table has room for
+    if any(f"{m}_lo" in r for r in results for m in CI_METRICS):
+        extra += [f"{m}_{end}" for m in CI_METRICS for end in ("lo", "hi")]
     with csv_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow([k for k, _ in COLUMNS] + ["filler_precision", "filler_recall"])
+        writer.writerow([k for k, _ in COLUMNS] + extra)
         for row in results:
             writer.writerow(
-                [row[k] for k, _ in COLUMNS] + [row["filler_precision"], row["filler_recall"]]
+                [row[k] for k, _ in COLUMNS] + [row.get(k, "") for k in extra]
             )
     return md_path, csv_path
 
@@ -472,18 +600,57 @@ def write_table(results: List[dict], out_dir: Path) -> Tuple[Path, Path]:
 # --------------------------------------------------------------------------
 
 
+BASELINE = "Copy baseline"
+
+
+def parse_model_spec(spec: str) -> Tuple[str, Path]:
+    """Read a ``label=path`` system specification.
+
+    Comparing two checkpoints on one table is the whole point of mixing real
+    speech into training, so the evaluator takes a list of systems rather than
+    a single model. A bare path keeps its own name.
+    """
+    if "=" in spec:
+        label, _, path = spec.partition("=")
+        return label.strip(), Path(path.strip())
+    path = Path(spec)
+    return path.name, path
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Evaluate the Mend cleanup model")
     ap.add_argument("--data", type=Path, default=Path("data"))
-    ap.add_argument("--model", type=Path, default=Path("outputs/model"))
+    ap.add_argument(
+        "--model",
+        action="append",
+        default=None,
+        metavar="LABEL=PATH",
+        help="a system to score; repeat to compare several checkpoints",
+    )
     ap.add_argument("--out", type=Path, default=Path("outputs"))
     ap.add_argument("--device", default=None)
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--limit", type=int, default=0, help="cap examples per set")
-    ap.add_argument("--swda-sample", dest="swda_sample", type=int, default=2000)
+    ap.add_argument("--swda-sample", dest="swda_sample", type=int, default=4000)
     ap.add_argument("--seed", type=int, default=13)
+    ap.add_argument(
+        "--bootstrap",
+        type=int,
+        default=0,
+        metavar="DRAWS",
+        help="resamples for the 95%% intervals; 0 reports point estimates only",
+    )
+    ap.add_argument(
+        "--from-predictions",
+        dest="from_predictions",
+        type=Path,
+        default=None,
+        help="re-score a saved predictions.jsonl instead of decoding again",
+    )
     args = ap.parse_args(argv)
     args.out.mkdir(parents=True, exist_ok=True)
+
+    systems = [parse_model_spec(s) for s in (args.model or ["outputs/model"])]
 
     sets = {
         "held-out synthetic": read_jsonl(args.data / "test.jsonl"),
@@ -493,7 +660,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if swda_path.exists():
         swda = read_jsonl(swda_path)
         # A fixed sample, so the row is comparable between runs without
-        # decoding all 80k utterances every time.
+        # decoding every held-out utterance each time.
         random.Random(args.seed).shuffle(swda)
         sets["real speech (SwDA)"] = swda[: args.swda_sample]
     else:
@@ -501,35 +668,74 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.limit:
         sets = {k: v[: args.limit] for k, v in sets.items()}
 
-    model, tokenizer, device = load_model(args.model, args.device)
-    print(f"model: {args.model} on {device}", file=sys.stderr)
+    outputs_by_system: Dict[str, Dict[str, List[str]]] = {BASELINE: {}}
+    for name, rows in sets.items():
+        outputs_by_system[BASELINE][name] = [copy_baseline(r["disfluent"]) for r in rows]
+
+    if args.from_predictions:
+        # Re-score saved output instead of decoding again. Rebuilding the table
+        # after a metric change costs an hour of GPU otherwise, and the answer
+        # cannot differ: the hypotheses are the same strings either way.
+        saved: Dict[str, List[dict]] = {}
+        for record in read_jsonl(args.from_predictions):
+            saved.setdefault(record["dataset"], []).append(record)
+        if not saved:
+            raise SystemExit(f"{args.from_predictions} is empty")
+        # every column that is not part of the row itself is a system
+        first = next(iter(saved.values()))[0]
+        systems = [
+            (label, Path(args.from_predictions))
+            for label in first
+            if label not in ("dataset", "disfluent", "gold", BASELINE)
+        ]
+        for name, rows in sets.items():
+            if name not in saved:
+                raise SystemExit(f"{args.from_predictions} has no rows for {name!r}")
+            if len(saved[name]) != len(rows):
+                raise SystemExit(
+                    f"{name!r}: {len(saved[name])} saved predictions but {len(rows)} "
+                    "rows -- regenerate them, or pass the --seed and --swda-sample "
+                    "the predictions were written with"
+                )
+        for label, _ in systems:
+            outputs_by_system[label] = {
+                name: [r[label] for r in saved[name]] for name in sets
+            }
+    else:
+        # One model in memory at a time: two checkpoints plus MPS decode buffers
+        # is more than a 16 GB machine wants to hold.
+        for label, path in systems:
+            model, tokenizer, device = load_model(path, args.device)
+            print(f"model: {label} ({path}) on {device}", file=sys.stderr)
+            outputs_by_system[label] = {}
+            for name, rows in sets.items():
+                print(f"  decoding {name} ({len(rows)})", file=sys.stderr)
+                outputs_by_system[label][name] = run_model(
+                    model, tokenizer, device, [r["disfluent"] for r in rows], args.batch
+                )
+            del model, tokenizer
 
     results: List[dict] = []
+    for name, rows in sets.items():
+        for label in [BASELINE] + [s for s, _ in systems]:
+            if args.bootstrap:
+                print(f"  scoring {label} on {name}", file=sys.stderr)
+            results.append({
+                "system": label,
+                "dataset": name,
+                **score(rows, outputs_by_system[label][name], args.bootstrap, args.seed),
+            })
+
     predictions: List[dict] = []
     for name, rows in sets.items():
-        inputs = [r["disfluent"] for r in rows]
-        print(f"decoding {name} ({len(rows)})", file=sys.stderr)
-        hyps = run_model(model, tokenizer, device, inputs, args.batch)
-        base = [copy_baseline(t) for t in inputs]
+        for i, r in enumerate(rows):
+            row = {"dataset": name, "disfluent": r["disfluent"], "gold": r["clean"]}
+            for system in outputs_by_system:
+                row[system] = outputs_by_system[system][name][i]
+            predictions.append(row)
 
-        for system, outputs in (("Copy baseline", base), ("Mend (flan-t5-small)", hyps)):
-            row = {"system": system, "dataset": name}
-            row.update(score(rows, outputs))
-            results.append(row)
-
-        for r, hyp, b in zip(rows, hyps, base):
-            predictions.append(
-                {
-                    "dataset": name,
-                    "disfluent": r["disfluent"],
-                    "gold": r["clean"],
-                    "mend": hyp,
-                    "copy_baseline": b,
-                }
-            )
-
-    # baseline rows first within each set, which is how the table reads best
-    order = {"Copy baseline": 0, "Mend (flan-t5-small)": 1}
+    # baseline row first within each set, then the systems as given
+    order = {BASELINE: 0, **{label: i + 1 for i, (label, _) in enumerate(systems)}}
     results.sort(key=lambda r: (list(sets).index(r["dataset"]), order[r["system"]]))
 
     md_path, csv_path = write_table(results, args.out)
