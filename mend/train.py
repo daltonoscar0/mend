@@ -17,9 +17,10 @@ import argparse
 import json
 import math
 import os
+import random
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 from datasets import Dataset
@@ -72,6 +73,36 @@ def load_pairs(path: Path, limit: int = 0) -> List[dict]:
             if limit and len(rows) >= limit:
                 break
     return rows
+
+
+def mix_real_speech(
+    synthetic: List[dict], path: Path, limit: int, seed: int
+) -> Tuple[List[dict], int]:
+    """Fold real transcribed speech into a synthetic training set.
+
+    Everything the injector produces is, by construction, invertible by
+    undoing the injector. Real self-repairs are not: the speaker abandons a
+    word they were plausibly about to say, the correction can arrive a clause
+    late, and there is often no editing phrase to mark the seam. A model that
+    has only seen synthetic pairs resolves fewer than a quarter of them.
+
+    The real rows are shuffled before the cap is applied, so the sample keeps
+    the corpus's natural composition -- roughly half of SwDA utterances carry
+    no disfluency at all. Oversampling the annotated ones would teach the model
+    that almost every sentence needs editing, which is a worse failure than the
+    one being fixed.
+    """
+    if limit == 0 or not path.exists():
+        if limit and not path.exists():
+            print(f"no {path}; training on synthetic pairs only", file=sys.stderr)
+        return synthetic, 0
+    real = load_pairs(path)
+    random.Random(seed).shuffle(real)
+    if limit > 0:
+        real = real[:limit]
+    mixed = synthetic + real
+    random.Random(seed).shuffle(mixed)
+    return mixed, len(real)
 
 
 def to_dataset(rows: Sequence[dict]) -> Dataset:
@@ -166,6 +197,25 @@ def train(args: argparse.Namespace) -> int:
 
     train_rows = load_pairs(args.data / "train.jsonl", args.max_train)
     val_rows = load_pairs(args.data / "val.jsonl")
+
+    n_synthetic = len(train_rows)
+    train_rows, n_real = mix_real_speech(
+        train_rows, args.data / "swda_train.jsonl", args.real, args.seed
+    )
+    # Validate on the same mixture the model is trained on. Selecting the best
+    # checkpoint by synthetic loss alone would pick the one that best inverts
+    # the injector, which is the thing we are trying to stop measuring.
+    real_val = round(len(val_rows) * n_real / max(1, n_synthetic)) if n_real else 0
+    val_rows, n_real_val = mix_real_speech(
+        val_rows, args.data / "swda_val.jsonl", real_val, args.seed + 1
+    )
+    if n_real:
+        share = n_real / len(train_rows)
+        print(
+            f"training mix: {n_synthetic} synthetic + {n_real} real "
+            f"({share:.0%} real); validation +{n_real_val} real",
+            file=sys.stderr,
+        )
 
     epochs = args.epochs
     if device == "cpu" and not args.smoke:
@@ -323,6 +373,9 @@ def train(args: argparse.Namespace) -> int:
         "batch_size": args.batch,
         "epochs": epochs,
         "train_pairs": len(train_rows),
+        "synthetic_pairs": n_synthetic,
+        "real_pairs": n_real,
+        "real_share": round(n_real / max(1, len(train_rows)), 4),
         "train_runtime_s": round(result.metrics.get("train_runtime", 0.0), 1),
         "first_eval_loss": first_eval,
         "best_eval_loss": best_eval,
@@ -357,6 +410,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--max-source", dest="max_source", type=int, default=128)
     ap.add_argument("--max-target", dest="max_target", type=int, default=128)
     ap.add_argument("--max-train", dest="max_train", type=int, default=0)
+    ap.add_argument(
+        "--real",
+        type=int,
+        default=0,
+        help="mix in up to N real SwDA training pairs (-1 for all, 0 for none)",
+    )
     ap.add_argument("--log-steps", dest="log_steps", type=int, default=20)
     ap.add_argument("--eval-steps", dest="eval_steps", type=int, default=0)
     ap.add_argument("--seed", type=int, default=13)
