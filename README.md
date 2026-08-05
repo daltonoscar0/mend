@@ -102,6 +102,12 @@ python -m mend.surprisal --data data/test.jsonl --draws 4000 \
     --title "Synthetic test split"
 python -m mend.surprisal --data data/swda_all.jsonl --shuffle --limit 20000 \
     --draws 4000 --tag _swda --title "Real speech (Switchboard)"
+#   the same two at 9x the model size, which is what --lm is for
+python -m mend.surprisal --data data/test.jsonl --draws 4000 \
+    --lm EleutherAI/pythia-1.4b --tag _p14b --title "Synthetic, pythia-1.4b"
+python -m mend.surprisal --data data/swda_all.jsonl --shuffle --limit 20000 \
+    --draws 4000 --lm EleutherAI/pythia-1.4b --tag _swda_p14b \
+    --title "Real speech, pythia-1.4b"
 
 # 7. run the model over your own text
 mend-clean "um send the the report to john no wait sarah by friday"
@@ -302,6 +308,12 @@ removed, read at the matching word position, so each instance is its own baselin
 |---|---|
 | ![Synthetic](outputs/surprisal_at_repair.png) | ![Real speech](outputs/surprisal_at_repair_swda.png) |
 
+The same two panels from pythia-1.4b are in
+[`outputs/surprisal_at_repair_p14b.png`](outputs/surprisal_at_repair_p14b.png)
+and
+[`outputs/surprisal_at_repair_swda_p14b.png`](outputs/surprisal_at_repair_swda_p14b.png);
+the comparison is below and it matters for the synthetic panel.
+
 Surprisal spikes at the interruption in both, for all three types, with every
 interval excluding zero (95% bootstrap CIs over 4000 resamples of the paired
 per-instance differences):
@@ -322,14 +334,46 @@ sample of the same corpus gave +4.57 [+4.17, +4.98] on 536 repairs, +5.66 on
 repetitions and +3.42 on filled pauses — the same three peaks in the same places,
 which is the reassuring part.
 
-The two panels differ in a way that indicts the generator. On real speech all three
-peaks sit exactly at position 0. On synthetic data the repair peak sits one position
-*earlier*, on the reparandum. That is because the injector's reparandum is a word
-drawn at random from a category — "send it to *Omar*" when the sentence is about
-Sarah — and a random substitution is inherently surprising. A real speaker's
-abandoned word is something they were plausibly about to say, so the surprise waits
-for the interruption itself. The synthetic figure is measuring the generator's
-randomness as much as the phenomenon.
+### Does this survive a bigger language model?
+
+The numbers above come from pythia-160m, and an obvious objection is that they
+measure a small model's limitations rather than a property of speech. Re-running
+the identical samples through **pythia-1.4b**, nine times the parameters, same
+family:
+
+| Type | Real speech, 160m | Real speech, 1.4b | Synthetic, 160m | Synthetic, 1.4b |
+|---|---|---|---|---|
+| Repair | +4.82 at 0 | +4.93 at 0 | +3.84 at **−1** | +5.06 at **0** |
+| Repetition | +5.75 at 0 | +5.83 at 0 | +2.91 at 0 | +5.26 at 0 |
+| Filled pause | +3.09 at 0 | +2.43 at 0 | +5.22 at **+1** | +5.81 at **0** |
+
+**On real speech the result is solid.** Every peak stays exactly at the
+interruption point and the two largest effects barely move — repair +4.82 →
++4.93, repetition +5.75 → +5.83, well inside each other's intervals. Only the
+filled-pause magnitude shifts down materially (+3.09 → +2.43). The headline
+claim — that a language model's surprise spikes at the interruption, worth about
+five bits, over 548 genuine human self-repairs — does not depend on model size.
+
+**On synthetic data it is not solid, and this cost me a conclusion.** An earlier
+version of this README argued that the two panels differed in a way that
+indicted the generator: on real speech all three peaks sat at 0, while on
+synthetic data the repair peak sat one position *earlier*, on the reparandum.
+The explanation offered was that the injector's reparandum is a word drawn at
+random from a category — "send it to *Omar*" when the sentence is about Sarah —
+and a random substitution is inherently surprising, whereas a real speaker's
+abandoned word is something they were plausibly about to say.
+
+pythia-1.4b puts all three synthetic peaks at 0, exactly like real speech. The
+panels no longer differ, so the offset was an artefact of the smaller model
+rather than a fingerprint of the generator. Looking back at the 160m numbers the
+signal was always thin: the synthetic repair effect was +3.84 at −1 against
++3.26 at 0, two nearly equal values with overlapping intervals, and `argmax`
+had to pick one.
+
+The criticism of the injector still stands on its own terms — its reparandum
+*is* a random category substitution, which is a fact about the code rather than
+something this analysis discovered. What is gone is the evidence that the
+surprisal figure demonstrated it.
 
 Two further caveats. The reported effects are paired against each type's own
 control, while the dashed line pools all control windows, so a gap read straight off
@@ -447,10 +491,12 @@ real ASR output anywhere in the pipeline — the disfluent side is always a
 transcript, never a recognition hypothesis, so it carries none of the substitution
 errors a real recogniser makes. The injector's repairs are still drawn from closed
 word categories. Utterances containing cut-off words are dropped from the SwDA
-parse, so fragments are unhandled by construction. And the surprisal analysis,
-though it rests on 548 real repairs, uses a 160M-parameter LM whose absolute bit
-values would shift with a larger one — the direction and the position of the peak
-are the robust parts, not the magnitude.
+parse, so fragments are unhandled by construction. The surprisal analysis rests
+on 548 real repairs and its real-speech peaks hold at nine times the model size,
+but the synthetic peaks do not, so any claim resting on where a synthetic peak
+falls should be treated as a property of the language model until it has been
+checked at more than one scale — as one such claim in this README turned out to
+be. Absolute bit values shift with model size in both.
 
 ## A note on `data/hard_set.jsonl`
 

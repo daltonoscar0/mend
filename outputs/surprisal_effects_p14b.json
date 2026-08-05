@@ -1,0 +1,50 @@
+{
+  "repair": {
+    "n": 311,
+    "peak_position": 0,
+    "peak_effect_bits": 5.0563995771969505,
+    "peak_effect_ci95": [
+      4.341933697417088,
+      5.74531376102443
+    ],
+    "surprisal_at_peak_bits": 13.564584377353526,
+    "control_at_peak_bits": 8.508184800156576,
+    "effect_at_boundary_bits": 5.0563995771969505,
+    "effect_at_boundary_ci95": [
+      4.341933697417088,
+      5.74531376102443
+    ]
+  },
+  "repetition": {
+    "n": 447,
+    "peak_position": 0,
+    "peak_effect_bits": 5.255207708201546,
+    "peak_effect_ci95": [
+      4.639145398891562,
+      5.8535062765509105
+    ],
+    "surprisal_at_peak_bits": 13.154012103855164,
+    "control_at_peak_bits": 7.898804395653618,
+    "effect_at_boundary_bits": 5.255207708201546,
+    "effect_at_boundary_ci95": [
+      4.639145398891562,
+      5.8535062765509105
+    ]
+  },
+  "filler": {
+    "n": 1652,
+    "peak_position": 0,
+    "peak_effect_bits": 5.814760840227273,
+    "peak_effect_ci95": [
+      5.471726881901482,
+      6.154310359208691
+    ],
+    "surprisal_at_peak_bits": 14.919103715090717,
+    "control_at_peak_bits": 9.104342874863443,
+    "effect_at_boundary_bits": 5.814760840227273,
+    "effect_at_boundary_ci95": [
+      5.471726881901482,
+      6.154310359208691
+    ]
+  }
+}
