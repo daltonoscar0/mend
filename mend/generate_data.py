@@ -17,7 +17,7 @@ frames it was trained on.
 Usage::
 
     python -m mend.generate_data --smoke
-    python -m mend.generate_data --train 50000 --val 2000 --test 2000
+    python -m mend.generate_data --train 50000 --val 2000 --test 10000 --seed 13
 """
 
 from __future__ import annotations
@@ -444,7 +444,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--out", type=Path, default=Path("data"))
     ap.add_argument("--train", type=int, default=50_000)
     ap.add_argument("--val", type=int, default=2_000)
-    ap.add_argument("--test", type=int, default=2_000)
+    ap.add_argument("--test", type=int, default=10_000)
     ap.add_argument("--seed", type=int, default=13)
     ap.add_argument(
         "--smoke",

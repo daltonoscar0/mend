@@ -1,20 +1,26 @@
 """Evaluate the cleanup model and write the results table.
 
-Two evaluation sets:
+Three evaluation sets:
 
 * the held-out synthetic test split, which carries injector annotations, so
   filler deletion and repair resolution can be scored against known spans;
 * the hand-written hard set, which has no annotations, so the same two metrics
-  are derived from the word-multiset difference between input and gold.
+  are derived from the word-multiset difference between input and gold;
+* held-out Switchboard conversations, present once ``data/swda_eval.jsonl``
+  has been generated. This is the row that carries the headline result.
 
-Two systems: the fine-tuned model, and a copy baseline that returns its input
-with a trivial casing and punctuation rule applied, which shows how much of the
-score comes from punctuation restoration alone.
+Systems are a copy baseline, which returns its input with a trivial casing and
+punctuation rule applied, plus one row for every ``--model`` given, so two
+checkpoints can be compared on one table.
+
+``--bootstrap`` adds 95% percentile intervals, resampling sentences.
+``--from-predictions`` re-scores saved output instead of decoding again.
 
 Usage::
 
-    python -m mend.evaluate
-    python -m mend.evaluate --limit 200          # quick pass
+    python -m mend.evaluate --bootstrap 2000 \
+        --model "Mend (synthetic only)=outputs/synthetic_only/model" \
+        --model "Mend (+ real speech)=outputs/mixed/model"
 """
 
 from __future__ import annotations
@@ -323,8 +329,8 @@ STAT_FIELDS = (
     "filler_tp",
     "filler_fp",
     "filler_fn",
-    "repair_ok",
-    "repair_seen",
+    "repair_ok",     # every repair in this sentence resolved
+    "repair_seen",   # this sentence has at least one repair
 )
 
 
@@ -392,9 +398,12 @@ def aggregate(stats: "np.ndarray") -> Dict[str, float]:
         "filler_f1": f1,
         "filler_precision": precision,
         "filler_recall": recall,
+        # Per SENTENCE, not per repair: a sentence with two repairs counts once
+        # and only scores if both came out right. On real speech 519 sentences
+        # carry 637 repairs, so the two are not interchangeable.
         "repair_accuracy": ratio(c["repair_ok"], c["repair_seen"]),
         "n": n,
-        "n_repairs": c["repair_seen"],
+        "n_repair_sentences": c["repair_seen"],
     }
 
 
@@ -525,7 +534,7 @@ COLUMNS = [
     ("wer_spoken", "WER (words only)"),
     ("filler_f1", "Filler removal F1"),
     ("repair_accuracy", "Repair resolution"),
-    ("n_repairs", "Repairs scored"),
+    ("n_repair_sentences", "Sentences with a repair"),
 ]
 
 
@@ -536,7 +545,7 @@ CI_COLUMNS = ("exact_match", "repair_accuracy")
 def _fmt(key: str, value, row: Optional[dict] = None) -> str:
     if key in ("system", "dataset"):
         return str(value)
-    if key in ("n", "n_repairs"):
+    if key in ("n", "n_repair_sentences"):
         return str(int(value))
     text = f"{value:.3f}"
     if row and key in CI_COLUMNS and f"{key}_lo" in row:

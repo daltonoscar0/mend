@@ -2,7 +2,7 @@
 name = "mend"
 version = "0.1.0"
 description = "Spoken-to-written dictation cleanup: filler removal, self-repair resolution, punctuation restoration"
-requires-python = ">=3.10"
+requires-python = ">=3.11"  # numpy 2.3 floor
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

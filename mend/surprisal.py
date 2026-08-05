@@ -156,6 +156,27 @@ def clean_position(alignment: Sequence[Optional[int]], boundary: int) -> int:
     return sum(1 for src in alignment[:boundary] if src is not None)
 
 
+def matched_clean_position(
+    alignment: Sequence[Optional[int]], boundary: int
+) -> Optional[int]:
+    """``clean_position``, or None when there is no matching position at all.
+
+    Counting survivors only locates the boundary if the disfluent stream visits
+    the clean tokens in clean order. The injector's delayed repair breaks that
+    on purpose: it holds the corrected token back and emits it a few words
+    later, so the words before the boundary are no longer a prefix of the clean
+    sentence and the count lands on an unrelated word. Reading a control window
+    there compares the disfluency against whatever happened to be at that index.
+
+    So require what the count silently assumes -- that everything before the
+    boundary maps onto a contiguous prefix of the clean tokens -- and give up
+    when it does not. Real transcripts are always in order, so this only ever
+    discards synthetic instances.
+    """
+    seen = {src for src in alignment[:boundary] if src is not None}
+    return len(seen) if seen == set(range(len(seen))) else None
+
+
 def collect_windows(
     rows: Sequence[dict], scorer: Surprisal, batch: int, verbose: bool = True
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
@@ -167,6 +188,7 @@ def collect_windows(
     the two can be differenced instance by instance.
     """
     wanted: List[dict] = []
+    skipped_unmatched = 0
     for row in rows:
         result = InjectionResult.from_dict(row)
         if not result.annotations:
@@ -180,7 +202,10 @@ def collect_windows(
                 continue
             if boundary - WINDOW < 0 or boundary + WINDOW >= len(result.disfluent_tokens):
                 continue
-            centre = clean_position(result.alignment, boundary)
+            centre = matched_clean_position(result.alignment, boundary)
+            if centre is None:
+                skipped_unmatched += 1
+                continue
             if centre - WINDOW < 0 or centre + WINDOW >= len(clean_spoken):
                 continue
             wanted.append(
@@ -195,6 +220,14 @@ def collect_windows(
 
     if verbose:
         print(f"{len(wanted)} disfluencies with a full window", file=sys.stderr)
+        if skipped_unmatched:
+            # never fires on real transcripts; these are the injector's
+            # delayed repairs, which have no matching fluent position
+            print(
+                f"  {skipped_unmatched} skipped: no matching position in the "
+                "fluent control",
+                file=sys.stderr,
+            )
     if not wanted:
         return {}, {}
 

@@ -254,7 +254,7 @@ def tidy_clean(tokens: Sequence[str]) -> List[str]:
 
 
 def load_utterances(
-    root: Path, min_words: int = 5, max_words: int = 40, keep_fragments: bool = False
+    root: Path, min_words: int = 5, max_words: int = 40
 ) -> List[dict]:
     """Parse every SwDA transcript under ``root`` into evaluation rows."""
     files = sorted(f for f in glob.glob(str(root / "**" / "*.csv"), recursive=True))
@@ -279,11 +279,15 @@ def load_utterances(
                 if not min_words <= len(clean) <= max_words:
                     stats["length"] += 1
                     continue
+                # Cut-off words ("d-", "ma-") are NOT filtered here, though an
+                # earlier version of this file claimed to. `spoken_form` strips
+                # the trailing hyphen while building the tokens, so by this
+                # point there is none left to match and the check never fired on
+                # any of the 81,107 parsed utterances. They therefore reach
+                # training and evaluation as bare words -- "ma-" as "ma" -- which
+                # is why the model leaves a stranded fragment in place rather
+                # than deleting it: nothing marks it as a fragment.
                 disfluent = " ".join(parsed.disfluent_tokens)
-                if not keep_fragments and re.search(r"\b\w+-(\s|$)", disfluent + " "):
-                    # a cut-off word like "d-"; nothing in training resembles it
-                    stats["fragment"] += 1
-                    continue
                 if disfluent in seen:
                     stats["duplicate"] += 1
                     continue
@@ -395,14 +399,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--val-fraction", dest="val_fraction", type=float, default=0.05)
     ap.add_argument("--eval-fraction", dest="eval_fraction", type=float, default=0.25)
     ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--keep-fragments", dest="keep_fragments", action="store_true")
     args = ap.parse_args(argv)
 
     if args.from_jsonl:
         rows = _read(args.from_jsonl)
         print(f"read {len(rows)} utterances from {args.from_jsonl}", file=sys.stderr)
     else:
-        rows = load_utterances(args.root, keep_fragments=args.keep_fragments)
+        rows = load_utterances(args.root)
     if args.limit:
         rows = rows[: args.limit]
 

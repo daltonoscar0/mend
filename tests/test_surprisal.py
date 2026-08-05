@@ -16,6 +16,7 @@ from mend.surprisal import (
     bootstrap_ci,
     clean_position,
     collect_windows,
+    matched_clean_position,
     paired_difference_ci,
     summarise_effects,
 )
@@ -78,6 +79,26 @@ def test_clean_position_counts_surviving_tokens():
 
 def test_clean_position_is_zero_at_the_start():
     assert clean_position([None, None, 0], 0) == 0
+
+
+def test_matched_position_agrees_when_the_order_is_preserved():
+    assert matched_clean_position([0, None, None, 1, 2], 3) == 1
+
+
+def test_matched_position_is_undefined_when_a_repair_arrives_late():
+    """The injector's delayed repair emits a clean token after later ones, so
+    counting survivors lands on an unrelated word and there is no match."""
+    # clean index 2 has not been emitted yet at the boundary, but 3 and 4 have
+    alignment = [0, 1, 3, 4, None, 2, 5]
+    assert clean_position(alignment, 4) == 4        # the old answer
+    assert matched_clean_position(alignment, 4) is None
+
+
+def test_matched_position_holds_for_every_real_transcript_row():
+    """Real speech is always in order, so the guard must never discard it."""
+    alignment = [0, None, 1, 2, None, 3]
+    for b in range(len(alignment)):
+        assert matched_clean_position(alignment, b) == clean_position(alignment, b)
 
 
 # --------------------------------------------------------------------------

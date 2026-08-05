@@ -344,8 +344,15 @@ def _span_reparandum(
         return None
 
     if allow_drop:
-        # drop one non-edge token, so the reparandum is a shorter first attempt
-        inner = [k for k in range(1, length) if len(span) - 1 >= 1]
+        # Drop one token after the first, so the reparandum is a shorter first
+        # attempt: "the quarterly report" against "the quarterly", or against
+        # "the report". Dropping the last token is allowed and gives the
+        # prefix case, which is a perfectly ordinary way to break off.
+        # (This read `[k for k in range(1, length) if len(span) - 1 >= 1]` until
+        # the condition was noticed to be constant -- it never mentioned k, and
+        # the two guards above already ensure it. Removing it changes nothing,
+        # which is why the published numbers still reproduce.)
+        inner = list(range(1, length))
         if inner:
             k = rng.choice(inner)
             shorter = span[:k] + span[k + 1 :]

@@ -186,10 +186,28 @@ def test_score_reports_zero_wer_for_a_perfect_system():
     assert result["n"] == 1
 
 
+def test_repair_count_is_sentences_not_repairs():
+    """A sentence with two repairs counts once and only scores if both are
+    right; on real speech 519 sentences carry 637 repairs."""
+    two = row(
+        "call john no sarah on monday no tuesday about it",
+        "Call Sarah on Tuesday about it.",
+        [
+            {"type": "repair", "reparandum": span(1, 2), "interregnum": span(2, 3),
+             "repair": span(3, 4)},
+            {"type": "repair", "reparandum": span(5, 6), "interregnum": span(6, 7),
+             "repair": span(7, 8)},
+        ],
+    )
+    result = score([two], ["Call Sarah on Tuesday about it."])
+    assert result["n_repair_sentences"] == 1
+    assert result["repair_accuracy"] == 1.0
+
+
 def test_score_leaves_repair_accuracy_undefined_with_no_repairs():
     rows = [row("send the report", "Send the report.", [])]
     result = score(rows, ["Send the report."])
-    assert result["n_repairs"] == 0
+    assert result["n_repair_sentences"] == 0
     assert result["repair_accuracy"] != result["repair_accuracy"]  # nan
 
 
