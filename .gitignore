@@ -25,3 +25,11 @@ outputs/*.log
 
 # packaging
 *.egg-info/
+CLAUDE.md
+AGENTS.md
+.claude/
+.agentnotes/
+.cursor/
+.mcp.json
+tasks/lessons.md
+tasks/todo.md

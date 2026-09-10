@@ -12,7 +12,7 @@ send it to john no wait sarah um by friday
 
 There is no corpus of paired dictation and its cleaned-up form, so Mend builds
 one. A disfluency injector runs clean written sentences backwards into plausible
-speech, keeping a record of exactly what it inserted and where — and those spans
+speech, keeping a record of exactly what it inserted and where, and those spans
 are what make the rest possible, because they give the evaluation something to
 score against.
 
@@ -35,7 +35,7 @@ comfortable margin.
 Almost nothing else does. On the synthetic split and the hard set the two models
 are not separated: some metrics tick up, synthetic exact match and hard-set
 filler F1 tick down, and every interval overlaps. The honest reading there is
-"did not regress", not "improved" — and a claim in an earlier version of this
+"did not regress", not "improved", and a claim in an earlier version of this
 README that read it the second way has been withdrawn. A separate claim was
 withdrawn and then reinstated when the evidence for withdrawing it turned out to
 come from a bug; that episode is written up in full below, rather than quietly
@@ -45,19 +45,19 @@ Half of real self-repairs are still unresolved. That is the honest ceiling.
 
 ## What is here
 
-* `mend/injector.py` — the disfluency injector, structured the way Shriberg
+* `mend/injector.py`, the disfluency injector, structured the way Shriberg
   describes self-repair: **reparandum** (the abandoned material), **interregnum**
   (the editing phrase), **repair** (what replaces it).
-* `mend/swda.py` — a parser for real conversational speech, which emits the same
+* `mend/swda.py`, a parser for real conversational speech, which emits the same
   schema, so nothing downstream needs to know whether a pair is synthetic or real.
-* two fine-tuned models — flan-t5-small, seq2seq, `clean up: {disfluent}` →
-  `{clean}` — one trained on synthetic pairs alone and one with real speech mixed
+* two fine-tuned models, flan-t5-small, seq2seq, `clean up: {disfluent}` ->
+  `{clean}`, one trained on synthetic pairs alone and one with real speech mixed
   in, so the difference between them is measurable rather than asserted. The
   second is on the Hub as
   [`daltonoscar0/mend-flan-t5-small`](https://huggingface.co/daltonoscar0/mend-flan-t5-small).
 * one evaluation table, `outputs/eval_table.md`, and the
   surprisal-at-repair-boundary figures.
-* `DECISIONS.md` — one line per engineering decision, including the ones that
+* `DECISIONS.md`, one line per engineering decision, including the ones that
   turned out to be wrong.
 
 ## Real speech
@@ -68,7 +68,7 @@ designed.
 
 The [Switchboard Dialog Act corpus](https://github.com/cgpotts/swda) is freely
 redistributable, is real telephone conversation, and its transcripts carry the
-Treebank-3 disfluency annotation — which is the same structure the injector
+Treebank-3 disfluency annotation, which is the same structure the injector
 imitates:
 
 ```
@@ -112,7 +112,7 @@ to ask. Whole conversations therefore go to exactly one split.
 
 This does spend something. In the first round nothing in the repo had ever been
 fitted to SwDA, which made every number on it a clean zero-shot transfer result.
-That is no longer true of the corpus as a whole — but the 293 evaluation
+That is no longer true of the corpus as a whole, but the 293 evaluation
 conversations have still never been trained on, and the synthetic-only model is
 kept and re-scored on that same held-out set, so the before/after comparison
 below is like for like. The zero-shot transfer finding is preserved as its own
@@ -126,16 +126,16 @@ which conversations Mend trained on has no bearing on it.
 
 Two systems, identical except for what they were trained on:
 
-* **Mend (synthetic only)** — 50k injected pairs, 2 epochs, about 66 minutes on an
-  M-series Mac across an interrupted-and-resumed run. Validation loss 0.186 →
+* **Mend (synthetic only)**, 50k injected pairs, 2 epochs, about 66 minutes on an
+  M-series Mac across an interrupted-and-resumed run. Validation loss 0.186 ->
   0.146; best checkpoint step 2400.
-* **Mend (+ real speech)** — the same 50k plus 25k real Switchboard utterances
-  (33% of the mix), 2 epochs, 62 minutes. Validation loss 0.216 → 0.159; best
+* **Mend (+ real speech)**, the same 50k plus 25k real Switchboard utterances
+  (33% of the mix), 2 epochs, 62 minutes. Validation loss 0.216 -> 0.159; best
   checkpoint step 4000. The two validation figures are not comparable to each
   other: the second validation set contains real speech and is harder.
 
-The copy baseline returns its input with a trivial rule applied — capitalise the
-first word, uppercase standalone *i*, add a full stop — which isolates how much of
+The copy baseline returns its input with a trivial rule applied, capitalise the
+first word, uppercase standalone *i*, add a full stop, which isolates how much of
 each score is punctuation restoration alone.
 
 | System | Set | N | Exact match | WER | WER (words only) | Filler removal F1 | Repair resolution | Sentences with a repair |
@@ -152,7 +152,7 @@ each score is punctuation restoration alone.
 
 The real-speech rows are the 293 held-out conversations, which neither model was
 trained on. Bracketed ranges are 95% percentile bootstrap intervals over 2000
-resamples, resampling **sentences** — a sentence is what was independently drawn
+resamples, resampling **sentences**, a sentence is what was independently drawn
 from the corpus, and the several disfluencies inside one are not independent of
 each other, so resampling repairs instead would give intervals that are too
 narrow.
@@ -160,7 +160,7 @@ narrow.
 ### What that difference looks like
 
 Real Switchboard utterances from the held-out conversations, with both models'
-output. These are the disfluency cases rather than the punctuation ones — the
+output. These are the disfluency cases rather than the punctuation ones, the
 speaker abandons something and starts again, and the question is whether the
 abandoned material survives into the written form:
 
@@ -213,19 +213,19 @@ models are actually separated. **On real speech the intervals do not come close
 to overlapping** (0.326 [0.285, 0.366] against 0.503 [0.460, 0.546]). Everywhere
 else they overlap: the synthetic rows say the mixed model did not regress, not
 that it improved, and the hard set at 100 sentences cannot separate 0.550 from
-0.610 — that row is a direction, not a measurement.
+0.610, that row is a direction, not a measurement.
 
 > **The earlier version of this table reported 0.227 for repair resolution on real
 > speech, not 0.326.** That was the same checkpoint measured on a different sample:
 > 2000 utterances drawn from the whole corpus, carrying 242 scored repairs, before
 > any split existed. Re-running the synthetic-only model under that old sampling
-> now gives 0.260 on 265 repairs — the spread between 0.227 and 0.260 is what a
+> now gives 0.260 on 265 repairs, the spread between 0.227 and 0.260 is what a
 > couple of hundred scored repairs buys you. The held-out sample sits a little
 > higher still at 0.326, which is what you would expect if conversations vary in
 > difficulty, though at these sample sizes the intervals overlap and the gap is
 > not firmly established. Nothing about the model changed; the measurement did.
 > Both systems above are scored on the identical sample, so
-> **0.326 → 0.503 is the like-for-like comparison**, and the evaluation sample was
+> **0.326 -> 0.503 is the like-for-like comparison**, and the evaluation sample was
 > doubled to 4000 utterances so the headline number rests on 519 sentences
 > carrying 637 repairs. (The metric is per sentence: a sentence with two repairs
 > scores only if both came out right.)
@@ -246,7 +246,7 @@ exist and the input/gold word-multiset difference otherwise.
 ### Surprisal at repair boundaries
 
 Per-token surprisal from pythia-160m, summed within each whitespace word, centred
-on the boundary token — the first token of the editing phrase, or of the repair
+on the boundary token, the first token of the editing phrase, or of the repair
 where there is none. The control is the *same* utterance with its disfluencies
 removed, read at the matching word position, so each instance is its own baseline.
 
@@ -296,19 +296,19 @@ family:
 | Filled pause | +3.09 at 0 | +2.43 at 0 | +5.22 at +1 | +5.81 at 0 |
 
 **Every peak position holds except one.** On real speech all three stay exactly
-on the interruption, and the two largest effects barely move — repair +4.82 →
-+4.93, repetition +5.75 → +5.83, well inside each other's intervals. On synthetic
+on the interruption, and the two largest effects barely move, repair +4.82 ->
++4.93, repetition +5.75 -> +5.83, well inside each other's intervals. On synthetic
 data the repair peak stays one position early at −1 under both models. The
 exception is the synthetic filled pause, which moves from +1 to 0; that one
 position should not be quoted.
 
 Magnitudes are much less stable, and the synthetic column shows why they should
-not be leaned on: synthetic repetition goes +2.91 → +5.26 and real filled pause
-goes +3.09 → +2.43 for no reason other than model size.
+not be leaned on: synthetic repetition goes +2.91 -> +5.26 and real filled pause
+goes +3.09 -> +2.43 for no reason other than model size.
 
 So **the difference between the two panels is real**: on real speech the surprise
 waits for the interruption, and on synthetic data it arrives a word early, on the
-reparandum. That is what you would expect from the way the injector works — its
+reparandum. That is what you would expect from the way the injector works, its
 reparandum is usually a word drawn at random from a category, "send it to *Omar*"
 when the sentence is about Sarah, and a random substitution is surprising in
 itself, whereas a real speaker's abandoned word is something they were plausibly
@@ -325,15 +325,15 @@ struck out and replaced with a retraction.
 The retraction was wrong, and a bug caused it. `clean_position` located the
 matching position in the fluent control by counting surviving tokens, which is
 only correct if the disfluent sentence visits the clean tokens in clean order.
-The injector's *delayed repair* deliberately breaks that — it holds the corrected
-token back and emits it a few words later — so 58 of the 311 synthetic repair
+The injector's *delayed repair* deliberately breaks that, it holds the corrected
+token back and emits it a few words later, so 58 of the 311 synthetic repair
 windows were reading their control at an unrelated word. Those 58 were, by
 construction, all repairs. Removing them (`matched_clean_position`, which
 requires the words before the boundary to map onto a contiguous prefix) leaves
 253 clean instances, and both language models then agree on −1.
 
-Real transcripts are always in order — 0 of 81,107 rows have a non-monotone
-alignment — so no real-speech number was ever affected by this.
+Real transcripts are always in order, 0 of 81,107 rows have a non-monotone
+alignment, so no real-speech number was ever affected by this.
 
 The sequence is worth stating plainly: a claim, a retraction on apparently good
 evidence, and then the retraction itself overturned by finding the bug that
@@ -347,7 +347,7 @@ leaves no matching position in the fluent control.
 
 ## Honest summary
 
-The single most misleading number in this repo is **0.848** — the synthetic-only
+The single most misleading number in this repo is **0.848**, the synthetic-only
 model's repair resolution on held-out synthetic data. The same model scores
 **0.326** on real speech. Anyone reading the first as evidence of a dictation
 cleanup system would be overestimating it by a factor of two and a half.
@@ -355,7 +355,7 @@ cleanup system would be overestimating it by a factor of two and a half.
 That gap is the whole point. Injected repairs are mostly category substitutions
 (88%), and 69% of them are announced by one of four stock editing phrases; real
 self-repairs are far less uniform. Whether a differently shaped generator could
-have closed more of the gap was never tested — the injector was widened once and
+have closed more of the gap was never tested, the injector was widened once and
 the pre-widening model was never scored on real speech.
 
 Adding 25k real utterances takes real-speech repair resolution to
@@ -364,11 +364,11 @@ filler removal from 0.859 to **0.955**. Those intervals are far apart; this is
 the one comparison here with a comfortable margin.
 
 What it does *not* do is improve anything else measurably. On the synthetic split
-the intervals overlap in both directions (exact match 0.649 → 0.646, repair
-resolution 0.848 → 0.863), which supports "did not regress" and nothing stronger.
-The hard set moves 0.550 → 0.610, but at 100 sentences that interval is ±0.10 and
-the two models are not separated. The useful reading is that the worry — that
-telephone conversation would drag the model off the dictation register — did not
+the intervals overlap in both directions (exact match 0.649 -> 0.646, repair
+resolution 0.848 -> 0.863), which supports "did not regress" and nothing stronger.
+The hard set moves 0.550 -> 0.610, but at 100 sentences that interval is ±0.10 and
+the two models are not separated. The useful reading is that the worry, that
+telephone conversation would drag the model off the dictation register, did not
 materialise at a third of the mix, rather than that mixing helped everywhere.
 
 Half of real self-repairs still go unresolved. That remains the honest ceiling.
@@ -376,17 +376,17 @@ Half of real self-repairs still go unresolved. That remains the honest ceiling.
 ### How much of the real-speech gain is really disfluency?
 
 Some of it is house style. The mixed model has learned Switchboard's comma
-conventions along with its disfluencies — *so uh what was the last car repair you
+conventions along with its disfluencies, *so uh what was the last car repair you
 had* comes back as *So, what was...* rather than *So what was...*, which is worth
 a chunk of the plain-WER improvement and nothing at all in cleanup quality. Three
 things argue the gain is not only that:
 
 * **words-only WER**, which is blind to punctuation and casing, still more than
-  halves (0.056 → 0.026);
+  halves (0.056 -> 0.026);
 * **repair resolution** is a word-multiset test that ignores punctuation entirely;
 * the failures that disappear are real ones. *are you going to go to east texas
-  for that* came back from the synthetic-only model as *Go to Texas for that.* —
-  a catastrophic over-deletion — and from the mixed model correctly.
+  for that* came back from the synthetic-only model as *Go to Texas for that.* -
+  a catastrophic over-deletion, and from the mixed model correctly.
 
 The caveat that remains: the model is now trained on SwDA's annotation
 conventions and evaluated against them. That is legitimate for measuring whether
@@ -396,13 +396,13 @@ corpus that draws the removable/keepable line somewhere else.
 ### The characteristic failures, after mixing
 
 * **Over-deletion of literal fillers is largely fixed but traded.** Filler removal
-  on real speech rose to 0.955, but hard-set *filler-as-content* fell 8/14 → 7/14.
+  on real speech rose to 0.955, but hard-set *filler-as-content* fell 8/14 -> 7/14.
   The model is better calibrated on conversational fillers and slightly worse on
   the adversarial dictation cases.
 * **Fragments are still unhandled**, and not for the reason this README used to
-  give. *it sure does ma make a difference* — a validation-split row rather than
-  one of the scored held-out cases — keeps the cut-off *ma*. Training does
-  contain such utterances — the filter meant to remove them never fired — but the
+  give. *it sure does ma make a difference*, a validation-split row rather than
+  one of the scored held-out cases, keeps the cut-off *ma*. Training does
+  contain such utterances, the filter meant to remove them never fired, but the
   hyphen is stripped on the way in, so *ma-* arrives as *ma* with nothing marking
   it as a fragment, and the model has no signal to learn from.
 * **Discourse-marker disagreement is now mostly resolved** in Switchboard's
@@ -425,20 +425,20 @@ Exact match on each of the eight adversarial categories, both models:
 | Nested repair | 2/12 | **4/12** |
 | **total** | **55/100** | **61/100** |
 
-Seven of eight categories improve or hold — five improve, two hold — and the
+Seven of eight categories improve or hold, five improve, two hold, and the
 one that regresses is
-filler-as-content — the model traded a little of its dictation-register
-calibration for a lot of conversational-filler accuracy. **With 8–16 examples per
-phenomenon these per-row differences are not statistically meaningful** — read
+filler-as-content, the model traded a little of its dictation-register
+calibration for a lot of conversational-filler accuracy. **With 8-16 examples per
+phenomenon these per-row differences are not statistically meaningful**, read
 them as directions, not measurements. Nested repair doubled to 4/12, which
 leaves it and false start (flat at 2/8) as the two weakest categories; neither
 training mix has touched false starts at all.
 
-An earlier round widened the injector itself — three-token repairs that overlap
+An earlier round widened the injector itself, three-token repairs that overlap
 their reparandum, corrections that arrive a clause late, mid-sentence false
 starts, literal filler words in a third of targets. That moved hard-set exact
-match 0.530 → 0.550, trading multi-repair and nested repair for overlapping and
-cross-clause. The hard set cannot separate either move at n=100 — widening the
+match 0.530 -> 0.550, trading multi-repair and nested repair for overlapping and
+cross-clause. The hard set cannot separate either move at n=100, widening the
 generator visibly rearranged the failures, and the only gain that is firmly
 measured anywhere is on real speech.
 
@@ -454,14 +454,14 @@ trained on, and the split is a seeded shuffle over whole conversations drawn
 before the mixed model was trained; the synthetic-only model predates the split
 entirely and had never seen SwDA at all. The
 corpus as a whole no longer has the stronger property it had in the previous
-round — that nothing in the repo had ever been fitted to any part of it.
+round, that nothing in the repo had ever been fitted to any part of it.
 
 ### Limitations
 
 Real disfluent speech now reaches the model, but only Switchboard telephone
 conversation, and only through a transcriber's annotation conventions; the model
 has been taught where *that* corpus draws the removable line. There is still no
-real ASR output anywhere in the pipeline — the disfluent side is always a
+real ASR output anywhere in the pipeline, the disfluent side is always a
 transcript, never a recognition hypothesis, so it carries none of the substitution
 errors a real recogniser makes. The injector's repairs are still drawn from closed
 word categories. Cut-off words reach training with their hyphen stripped, so
@@ -469,8 +469,8 @@ nothing distinguishes a fragment from a real word and fragments are unhandled. T
 on 548 real repairs, and every peak position but one holds at nine times the
 model size. The exception is the synthetic filled pause, which moves from +1 to
 0, so that one position should not be quoted. Absolute bit values are much less
-stable than positions — synthetic repetition moves +2.91 to +5.26 for no reason
-but model size — so read the magnitudes as approximate throughout.
+stable than positions, synthetic repetition moves +2.91 to +5.26 for no reason
+but model size, so read the magnitudes as approximate throughout.
 
 ## A note on `data/hard_set.jsonl`
 
@@ -480,8 +480,8 @@ like *like* and *sorry* used literally rather than as fillers, number and date
 repairs, and sentences carrying several repairs at once.
 
 It has since been reviewed. Every gold was checked to introduce no word absent
-from its input, apostrophes aside — no example asks the model to invent a word
-the speaker never said — and there are no duplicate inputs or golds. The twelve
+from its input, apostrophes aside, no example asks the model to invent a word
+the speaker never said, and there are no duplicate inputs or golds. The twelve
 cross-clause rows are not reachable by deletion alone, though: the corrected
 phrase has to move back to where the abandoned one stood. One
 inconsistency was found and fixed: *the flight leaves at 6 45 no wait 7 45* asked
@@ -490,8 +490,8 @@ keeps its space, *at 3 no at 4* stays a bare `4`). The set's convention is that
 repairs get resolved, not that numbers get reformatted, so the gold is now `7 45`.
 
 Two things to know before quoting a hard-set number. Exact match on four rows
-turns on orthography rather than disfluency — *like-minded*, *north-east*,
-*double-sided*, and the apostrophe in *Let's* — which is legitimate written
+turns on orthography rather than disfluency, *like-minded*, *north-east*,
+*double-sided*, and the apostrophe in *Let's*, which is legitimate written
 English but is not what the set was built to probe. And it remains a development
 set for the categories the injector was tuned against.
 
@@ -521,7 +521,7 @@ print(tok.decode(model.generate(**ids, max_new_tokens=160)[0], skip_special_toke
 # Send the report to Sarah by Friday.
 ```
 
-The `clean up: ` prefix is not optional — it is the task prefix the model was
+The `clean up: ` prefix is not optional, it is the task prefix the model was
 fine-tuned with. Input should be lowercased with edge punctuation removed, which
 is the register it saw in training.
 
@@ -536,15 +536,15 @@ So I was really tired.
 ```
 
 It reads stdin when given no arguments, one line in, one line out, so it works in
-a pipe. Input is normalised to the register the model was trained on — lowercased,
-edge punctuation removed — so pasting text that already has capitals and commas
+a pipe. Input is normalised to the register the model was trained on, lowercased,
+edge punctuation removed, so pasting text that already has capitals and commas
 works; `--raw` skips that. `--show-input` prints both sides.
 
 `outputs/model` points at the model trained with real speech mixed in: clearly
 better on real speech, not separated from the other model on the synthetic split,
-and better on hard-set exact match at the cost of filler-as-content (F1 0.667 →
+and better on hard-set exact match at the cost of filler-as-content (F1 0.667 ->
 0.571). Read the Results and Honest summary sections above before trusting it on
-anything — it removes filled pauses and restores punctuation reliably, and
+anything, it removes filled pauses and restores punctuation reliably, and
 resolves about half of real self-repairs.
 
 ## Running the stages
@@ -600,7 +600,7 @@ Every stage is seeded and re-runnable. Do not run the surprisal pass next to
 training on a 16 GB machine; together they exhaust memory and both crawl.
 
 The test suite builds its own data and stubs the language model, so it runs on a
-fresh clone in seconds and needs no GPU — which is what lets CI run it on every
+fresh clone in seconds and needs no GPU, which is what lets CI run it on every
 push. It covers the injector, the SwDA parser and split, the
 training mix, the scoring functions and the surprisal windowing. `train.py`'s
 loop and `generate_data.py`'s WikiText reader are not covered; both are thin
