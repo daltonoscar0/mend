@@ -56,7 +56,19 @@ Half of real self-repairs are still unresolved. That is the honest ceiling.
   second is on the Hub as
   [`daltonoscar0/mend-flan-t5-small`](https://huggingface.co/daltonoscar0/mend-flan-t5-small).
 * one evaluation table, `outputs/eval_table.md`, and the
-  surprisal-at-repair-boundary figures.
+  surprisal-at-repair-boundary figures. The decoded output behind every cell of
+  that table, `outputs/predictions.jsonl` (7.5 MB, 14,100 lines), is attached to
+  the [`outputs-v1`](https://github.com/daltonoscar0/mend/releases/tag/outputs-v1)
+  release rather than committed:
+
+  ```bash
+  gh release download outputs-v1 --repo daltonoscar0/mend --dir outputs
+  python -m mend.evaluate --from-predictions outputs/predictions.jsonl
+  ```
+
+  `--from-predictions` re-scores the saved file instead of decoding again, so
+  the table stays traceable to the exact hypotheses it was built from without a
+  GPU run.
 * `DECISIONS.md`, one line per engineering decision, including the ones that
   turned out to be wrong.
 

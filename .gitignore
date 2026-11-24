@@ -33,3 +33,7 @@ AGENTS.md
 .mcp.json
 tasks/lessons.md
 tasks/todo.md
+
+# 7.5 MB of decoded evaluation output: attached to the outputs-v1 release.
+# Re-score it with `python -m mend.evaluate --from-predictions`.
+outputs/predictions.jsonl
