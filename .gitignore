@@ -33,3 +33,6 @@ AGENTS.md
 .mcp.json
 tasks/lessons.md
 tasks/todo.md
+
+data/*.jsonl.gz
+*-archive-*.tar.gz
